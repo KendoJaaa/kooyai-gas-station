@@ -1,0 +1,10 @@
+@page {
+  size: A4;
+  margin: 16mm;
+}
+
+html,
+body,
+#root {
+  background: #fff;
+}
