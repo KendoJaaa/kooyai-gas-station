@@ -1,0 +1,348 @@
+import type { JSX } from 'react'
+import { Accordion, Button, Group, Table, Text, TextInput } from '@mantine/core'
+import {
+  adjustmentsFor,
+  emptyDelivery,
+  emptyInvoiceLine,
+  type DayRecord,
+  type DeliveryNote,
+  type FuelAdjustments,
+  type TaxInvoiceLine
+} from '../../shared/reports'
+import { sortedFuelTypes, sortedTanks, type StationConfig } from '../../shared/station'
+import { DecimalInput } from './kor-form/DecimalInput'
+import { parseMeter } from './kor-form/numbers'
+
+export interface DayExtrasProps {
+  config: StationConfig
+  date: string
+  day: DayRecord
+  onDayChange: (next: DayRecord) => void
+}
+
+export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): JSX.Element {
+  const fuels = sortedFuelTypes(config)
+  const tanks = sortedTanks(config)
+
+  const patchAdjustment = (
+    fuelTypeId: string,
+    field: keyof FuelAdjustments,
+    text: string
+  ): void => {
+    const parsed = parseMeter(text) ?? 0
+    const current = adjustmentsFor(day, fuelTypeId)
+    onDayChange({
+      ...day,
+      adjustments: {
+        ...day.adjustments,
+        [fuelTypeId]: { ...current, [field]: parsed }
+      }
+    })
+  }
+
+  const addInvoice = (kind: 'fullInvoices' | 'shortInvoices'): void => {
+    const list = day[kind].length > 0 ? day[kind] : [emptyInvoiceLine()]
+    onDayChange({ ...day, [kind]: [...list, emptyInvoiceLine()] })
+  }
+
+  const addDelivery = (): void => {
+    const list = day.deliveries.length > 0 ? day.deliveries : []
+    onDayChange({
+      ...day,
+      deliveries: [...list, emptyDelivery(list.length + 1, date)]
+    })
+  }
+
+  const patchDelivery = (index: number, patch: Partial<DeliveryNote>): void => {
+    const list = [...day.deliveries]
+    list[index] = { ...list[index], ...patch }
+    onDayChange({ ...day, deliveries: list })
+  }
+
+  const patchDeliveryLiters = (index: number, tankId: string, text: string): void => {
+    const list = [...day.deliveries]
+    const parsed = parseMeter(text)
+    list[index] = {
+      ...list[index],
+      litersByTank: {
+        ...list[index].litersByTank,
+        [tankId]: parsed ?? 0
+      }
+    }
+    onDayChange({ ...day, deliveries: list })
+  }
+
+  return (
+    <Accordion variant="separated" multiple>
+      <Accordion.Item value="deductions">
+        <Accordion.Control>หักทดสอบ น้ำมันใช้เอง ส่วนลด และภาษีซื้อ — กรอกเฉพาะวันที่มียอด</Accordion.Control>
+        <Accordion.Panel>
+          <Text size="sm" c="dimmed" mb="sm">
+            ทดสอบน้ำมันหักในส่วน ก และบวกกลับถังในส่วน ข ดีเซลใส่ที่ถังแรกของชนิดนั้น (หัว 1, 5)
+          </Text>
+          <Table striped withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>รายการ</Table.Th>
+                {fuels.map((fuel) => (
+                  <Table.Th key={fuel.id}>{fuel.nameTh}</Table.Th>
+                ))}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              <AdjustmentRow
+                label="ทดสอบน้ำมัน (ลิตร)"
+                field="testLiters"
+                fuels={fuels}
+                day={day}
+                onChange={patchAdjustment}
+              />
+              <AdjustmentRow
+                label="น้ำมันใช้เอง (ลิตร)"
+                field="ownUseLiters"
+                fuels={fuels}
+                day={day}
+                onChange={patchAdjustment}
+              />
+              <AdjustmentRow
+                label="ส่วนลดการค้า (บาท)"
+                field="tradeDiscountBaht"
+                fuels={fuels}
+                day={day}
+                onChange={patchAdjustment}
+              />
+              <AdjustmentRow
+                label="เงินเชื่อ (บาท)"
+                field="creditDiscountBaht"
+                fuels={fuels}
+                day={day}
+                onChange={patchAdjustment}
+              />
+              <AdjustmentRow
+                label="ภาษีซื้อ (บาท)"
+                field="inputVatBaht"
+                fuels={fuels}
+                day={day}
+                onChange={patchAdjustment}
+              />
+            </Table.Tbody>
+          </Table>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item value="invoices">
+        <Accordion.Control>ใบกำกับภาษี — ข้ามได้ถ้าวันนี้ไม่มี</Accordion.Control>
+        <Accordion.Panel>
+          <InvoiceEditor
+            title="ใบกำกับภาษีเต็มรูป ม.86/4"
+            lines={day.fullInvoices}
+            onChange={(next) => onDayChange({ ...day, fullInvoices: next })}
+            onAdd={() => addInvoice('fullInvoices')}
+          />
+          <InvoiceEditor
+            title="ใบกำกับภาษีอย่างย่อ ม.86/6"
+            lines={day.shortInvoices}
+            onChange={(next) => onDayChange({ ...day, shortInvoices: next })}
+            onAdd={() => addInvoice('shortInvoices')}
+          />
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item value="delivery">
+        <Accordion.Control>ยอดรับน้ำมัน — กรอกเฉพาะวันที่รถบรรทุกมาส่ง</Accordion.Control>
+        <Accordion.Panel>
+          <Text size="sm" c="dimmed" mb="sm">
+            วันนี้ไม่มีรถบรรทุก ข้ามได้
+          </Text>
+          {day.deliveries.length > 0 ? (
+            <Table withTableBorder withColumnBorders mb="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>ลำดับ</Table.Th>
+                  <Table.Th>เลขที่ใบจ่ายน้ำมัน</Table.Th>
+                  <Table.Th>วันที่</Table.Th>
+                  <Table.Th>คลังน้ำมันผู้ขายส่ง</Table.Th>
+                  <Table.Th>ชื่อผู้จ่ายน้ำมัน</Table.Th>
+                  {tanks.map((tank) => (
+                    <Table.Th key={tank.id}>
+                      ถังที่ {tank.tankNo}
+                    </Table.Th>
+                  ))}
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {day.deliveries.map((note, index) => (
+                  <Table.Tr key={`${note.seq}-${index}`}>
+                    <Table.Td>{note.seq || index + 1}</Table.Td>
+                    <Table.Td>
+                      <TextInput
+                        value={note.number}
+                        onChange={(event) => patchDelivery(index, { number: event.target.value })}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <TextInput
+                        value={note.date}
+                        onChange={(event) => patchDelivery(index, { date: event.target.value })}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <TextInput
+                        value={note.wholesaler}
+                        onChange={(event) => patchDelivery(index, { wholesaler: event.target.value })}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <TextInput
+                        value={note.issuer}
+                        onChange={(event) => patchDelivery(index, { issuer: event.target.value })}
+                      />
+                    </Table.Td>
+                    {tanks.map((tank) => (
+                      <Table.Td key={tank.id}>
+                        <DecimalInput
+                          className="kor-input extras-input"
+                          value={note.litersByTank?.[tank.id] || null}
+                          onCommit={(parsed) =>
+                            patchDeliveryLiters(index, tank.id, parsed == null ? '' : String(parsed))
+                          }
+                        />
+                      </Table.Td>
+                    ))}
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          ) : null}
+          <Button mt="sm" variant="light" onClick={addDelivery}>
+            เพิ่มแถวใบจ่ายน้ำมัน
+          </Button>
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion>
+  )
+}
+
+function AdjustmentRow({
+  label,
+  field,
+  fuels,
+  day,
+  onChange
+}: {
+  label: string
+  field: keyof FuelAdjustments
+  fuels: ReturnType<typeof sortedFuelTypes>
+  day: DayRecord
+  onChange: (fuelTypeId: string, field: keyof FuelAdjustments, text: string) => void
+}): JSX.Element {
+  return (
+    <Table.Tr>
+      <Table.Td>{label}</Table.Td>
+      {fuels.map((fuel) => {
+        const value = adjustmentsFor(day, fuel.id)[field]
+        return (
+          <Table.Td key={fuel.id}>
+            <DecimalInput
+              className="kor-input extras-input"
+              value={value || null}
+              onCommit={(parsed) => onChange(fuel.id, field, parsed == null ? '' : String(parsed))}
+              ariaLabel={`${label} ${fuel.nameTh}`}
+            />
+          </Table.Td>
+        )
+      })}
+    </Table.Tr>
+  )
+}
+
+function InvoiceEditor({
+  title,
+  lines,
+  onChange,
+  onAdd
+}: {
+  title: string
+  lines: TaxInvoiceLine[]
+  onChange: (lines: TaxInvoiceLine[]) => void
+  onAdd: () => void
+}): JSX.Element {
+  const rows = lines.length > 0 ? lines : [emptyInvoiceLine()]
+
+  const patch = (index: number, update: Partial<TaxInvoiceLine>): void => {
+    const next = lines.length > 0 ? [...lines] : [emptyInvoiceLine()]
+    next[index] = { ...next[index], ...update }
+    onChange(next)
+  }
+
+  return (
+    <div className="invoice-editor">
+      <Group justify="space-between" mb="xs">
+        <Text fw={600}>{title}</Text>
+        <Button size="xs" variant="light" onClick={onAdd}>
+          เพิ่มแถว
+        </Button>
+      </Group>
+      <Table withTableBorder withColumnBorders>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>เล่มที่</Table.Th>
+            <Table.Th>จากเลขที่</Table.Th>
+            <Table.Th>ถึงเลขที่</Table.Th>
+            <Table.Th>จำนวนฉบับ</Table.Th>
+            <Table.Th>มูลค่าสินค้า</Table.Th>
+            <Table.Th>ภาษีมูลค่าเพิ่ม</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {rows.map((line, index) => (
+            <Table.Tr key={`${title}-${index}`}>
+              <Table.Td>
+                <input
+                  className="kor-input extras-input kor-input--text"
+                  value={line.bookNo}
+                  onChange={(event) => patch(index, { bookNo: event.target.value })}
+                />
+              </Table.Td>
+              <Table.Td>
+                <input
+                  className="kor-input extras-input kor-input--text"
+                  value={line.fromNo}
+                  onChange={(event) => patch(index, { fromNo: event.target.value })}
+                />
+              </Table.Td>
+              <Table.Td>
+                <input
+                  className="kor-input extras-input kor-input--text"
+                  value={line.toNo}
+                  onChange={(event) => patch(index, { toNo: event.target.value })}
+                />
+              </Table.Td>
+              <Table.Td>
+                <DecimalInput
+                  className="kor-input extras-input"
+                  value={line.count || null}
+                  onCommit={(parsed) => patch(index, { count: parsed ?? 0 })}
+                />
+              </Table.Td>
+              <Table.Td>
+                <DecimalInput
+                  className="kor-input extras-input"
+                  value={line.amount || null}
+                  onCommit={(parsed) => patch(index, { amount: parsed ?? 0 })}
+                />
+              </Table.Td>
+              <Table.Td>
+                <DecimalInput
+                  className="kor-input extras-input"
+                  value={line.vat || null}
+                  onCommit={(parsed) => patch(index, { vat: parsed ?? 0 })}
+                />
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </div>
+  )
+}

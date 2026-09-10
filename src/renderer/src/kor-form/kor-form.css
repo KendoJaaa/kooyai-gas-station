@@ -1,0 +1,305 @@
+.kor-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  color: #000;
+  background: #fff;
+  font-family: 'Leelawadee UI', Tahoma, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+@media screen {
+  .kor-page {
+    border: 1px solid #c8c8c8;
+    padding: 12px;
+  }
+}
+
+.kor-header {
+  position: relative;
+  padding-bottom: 4px;
+}
+
+.kor-header__corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  z-index: 1;
+}
+
+.kor-header__printed {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.kor-header__part {
+  display: inline-block;
+  border: 1px solid #000;
+  padding: 3px 16px 2px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+.kor-header__titles {
+  text-align: center;
+  padding: 0 150px 6px;
+}
+
+.kor-header__title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.kor-header__period {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.kor-header__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 8px;
+}
+
+.kor-header__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.kor-header__row--split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 28px;
+  align-items: baseline;
+}
+
+.kor-header__left,
+.kor-header__right {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.kor-header__right {
+  white-space: nowrap;
+}
+
+.kor-header__label {
+  flex: 0 0 auto;
+}
+
+.kor-header__value {
+  font-weight: 600;
+}
+
+.kor-col-idx {
+  width: 8%;
+}
+
+.kor-col-metric {
+  width: 7.6%;
+}
+
+.kor-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 4px;
+  font-size: 9px;
+  line-height: 1.15;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.kor-table th,
+.kor-table td {
+  border: 1px solid #000;
+  padding: 2px 3px;
+  vertical-align: middle;
+}
+
+.kor-th-idx {
+  font-weight: 700;
+  text-align: center;
+}
+
+.kor-th-fuel {
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.02em;
+  padding: 3px 2px;
+}
+
+.kor-th-sub {
+  font-weight: 600;
+  text-align: center;
+}
+
+.kor-td-idx {
+  text-align: center;
+  font-weight: 600;
+}
+
+.kor-row-placeholder td:not(.kor-td-idx),
+.kor-row-summary td:not(.kor-td-summary):not(.kor-num):not(.kor-td-total) {
+  background: #f0f0f0;
+  height: 16px;
+}
+
+.kor-td-empty {
+  background: #f0f0f0;
+  height: 16px;
+}
+
+.kor-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.kor-td-end {
+  padding: 0 2px;
+}
+
+.kor-input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 0;
+  margin: 0;
+  padding: 2px 3px;
+  background: #fffbe6;
+  color: #000;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.kor-input:focus {
+  outline: 1px solid #000;
+  background: #fff;
+}
+
+.kor-input--invalid {
+  background: #fff5f5;
+  outline: 2px solid #c92a2a;
+}
+
+.kor-input--invalid:focus {
+  background: #fff5f5;
+  outline: 2px solid #c92a2a;
+}
+
+.kor-input--text {
+  text-align: left;
+}
+
+.extras-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d0d0d0;
+}
+
+.invoice-editor {
+  margin-bottom: 16px;
+}
+
+.kor-td-total {
+  font-weight: 700;
+  background: #fff;
+}
+
+.kor-td-summary {
+  text-align: left;
+  font-size: 8.5px;
+  background: #fff;
+}
+
+.kor-td-summary--indent {
+  padding-left: 18px;
+  font-weight: 400;
+}
+
+.kor-td-price {
+  text-align: center;
+  font-weight: 600;
+  background: #fff;
+}
+
+.kor-input-price {
+  display: inline-block;
+  width: 5.5rem;
+  text-align: right;
+}
+
+.kor-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #000;
+}
+
+.kor-vat-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 28px;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.kor-vat-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 14px;
+  font-size: 12px;
+}
+
+.kor-invoice {
+  margin-top: 12px;
+}
+
+.kor-invoice__title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.khor-th-label {
+  width: 34%;
+  text-align: left;
+  font-weight: 700;
+}
+
+.khor-td {
+  height: 22px;
+}
+
+.khor-delivery-title {
+  margin: 10px 0 4px;
+  font-weight: 700;
+}
+
+.khor-delivery-table th,
+.khor-delivery-table td {
+  font-size: 8.5px;
+}
+
+@media print {
+  .kor-page {
+    min-height: 0;
+  }
+}

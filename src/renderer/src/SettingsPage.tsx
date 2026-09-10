@@ -1,0 +1,215 @@
+import { useEffect, useState, type JSX } from 'react'
+import { Button, Group, PasswordInput, Stack, Text, Title } from '@mantine/core'
+import { notifications } from '@mantine/notifications'
+import {
+  prepareIdentity,
+  prepareStationConfig,
+  validateIdentity,
+  validateStationConfig,
+  type StationConfig,
+  type StationIdentity
+} from '../../shared/station'
+import { IdentityFields } from './IdentityFields'
+import { StationConfigEditor } from './StationConfigEditor'
+import { useStationStore } from './StationStore'
+import './kor-form/kor-form.css'
+
+export function SettingsPage({ onOpenSetup }: { onOpenSetup: () => void }): JSX.Element {
+  const { store, setStore } = useStationStore()
+  const [saving, setSaving] = useState(false)
+  const [identity, setIdentity] = useState<StationIdentity>(store.identity)
+  const [config, setConfig] = useState<StationConfig>(store.config)
+  const [mongoUri, setMongoUri] = useState('')
+  const [syncSaving, setSyncSaving] = useState(false)
+  const [lastSyncAt, setLastSyncAt] = useState<string | undefined>()
+  const [lastSyncError, setLastSyncError] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (!window.api?.getSyncSettings) return
+    void window.api.getSyncSettings().then((settings) => {
+      setMongoUri(settings.mongodbUri)
+      setLastSyncAt(settings.lastSyncAt)
+      setLastSyncError(settings.lastSyncError)
+    })
+  }, [])
+
+  const persist = async (): Promise<void> => {
+    const identityProblem = validateIdentity(identity)
+    if (identityProblem) {
+      notifications.show({ color: 'red', title: 'บันทึกไม่ได้', message: identityProblem })
+      return
+    }
+    const prepared = prepareStationConfig(config)
+    const problem = validateStationConfig(prepared)
+    if (problem) {
+      notifications.show({ color: 'red', title: 'บันทึกไม่ได้', message: problem })
+      return
+    }
+
+    const next = {
+      ...store,
+      identity: prepareIdentity(identity),
+      config: prepared,
+      setupCompleted: true
+    }
+    setSaving(true)
+    try {
+      if (!window.api) {
+        setStore(next)
+        setConfig(prepared)
+        setIdentity(next.identity)
+        notifications.show({
+          color: 'yellow',
+          title: 'โหมดดูตัวอย่าง',
+          message: 'บันทึกในเครื่องได้เมื่อเปิดจากโปรแกรม'
+        })
+        return
+      }
+      const response = await window.api.saveStore(next)
+      if (!response.ok) {
+        notifications.show({ color: 'red', title: 'บันทึกไม่สำเร็จ', message: response.message })
+        return
+      }
+      setStore(next)
+      setConfig(prepared)
+      setIdentity(next.identity)
+      notifications.show({
+        color: 'teal',
+        title: 'บันทึกแล้ว',
+        message: 'หัวจ่ายและประเภทน้ำมันใช้กับหน้าบันทึกรายวันแล้ว ยอดเก่าไม่ถูกลบ'
+      })
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'บันทึกไม่สำเร็จ',
+        message: error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveMongoUri = async (): Promise<void> => {
+    if (!window.api?.saveSyncUri) {
+      notifications.show({ color: 'yellow', title: 'โหมดดูตัวอย่าง', message: 'บันทึก URI ได้เมื่อเปิดจากโปรแกรม' })
+      return
+    }
+    setSyncSaving(true)
+    try {
+      const result = await window.api.saveSyncUri(mongoUri)
+      if (!result.ok) {
+        notifications.show({ color: 'red', title: 'เชื่อมต่อไม่ได้', message: result.message })
+        return
+      }
+      const settings = await window.api.getSyncSettings()
+      setLastSyncAt(settings.lastSyncAt)
+      setLastSyncError(undefined)
+      notifications.show({
+        color: 'teal',
+        title: 'บันทึก URI แล้ว',
+        message: mongoUri.trim() ? 'เครื่องนี้จะซิงค์ตอนเปิดแอปและตอนบันทึก' : 'ปิดการซิงค์แล้ว'
+      })
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'บันทึก URI ไม่สำเร็จ',
+        message: error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'
+      })
+    } finally {
+      setSyncSaving(false)
+    }
+  }
+
+  const syncNow = async (): Promise<void> => {
+    if (!window.api?.syncNow) return
+    setSyncSaving(true)
+    try {
+      const result = await window.api.syncNow()
+      if (!result.ok) {
+        notifications.show({ color: 'red', title: 'ซิงค์ไม่สำเร็จ', message: result.message })
+        return
+      }
+      const loaded = await window.api.loadStore()
+      setStore(loaded)
+      setIdentity(loaded.identity)
+      setConfig(loaded.config)
+      const settings = await window.api.getSyncSettings()
+      setLastSyncAt(settings.lastSyncAt)
+      setLastSyncError(undefined)
+      notifications.show({ color: 'teal', title: 'ซิงค์แล้ว', message: 'ดึงจาก Atlas แล้วบันทึกกลับขึ้นไป' })
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'ซิงค์ไม่สำเร็จ',
+        message: error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'
+      })
+    } finally {
+      setSyncSaving(false)
+    }
+  }
+
+  return (
+    <Stack gap="lg">
+      <Text c="dimmed">
+        กำหนดข้อมูลสถานี ประเภทน้ำมัน หัวจ่าย และถัง ยอดที่บันทึกไว้แล้วไม่หาย
+      </Text>
+
+      <Group justify="space-between">
+        <Button variant="light" onClick={onOpenSetup}>
+          เปิดตัวช่วยตั้งค่าเริ่มต้น
+        </Button>
+        <Button loading={saving} onClick={() => void persist()}>
+          บันทึกการตั้งค่า
+        </Button>
+      </Group>
+
+      <section>
+        <Title order={4} mb="sm">
+          ซิงค์ MongoDB Atlas
+        </Title>
+        <Text size="sm" c="dimmed" mb="sm">
+          ใช้คลัสเตอร์ฟรีที่ mongodb.com แล้ววาง Connection string ที่นี่ ทั้งสองเครื่องใส่ URI เดียวกัน
+          Network Access ต้องเปิด 0.0.0.0/0 เพราะร้านอยู่คนละที่
+          ข้อมูลยังบันทึกในเครื่อง ถ้าเน็ตขาดก็ใช้ต่อได้ ซิงค์เมื่อเน็ตกลับ
+        </Text>
+        <PasswordInput
+          label="MongoDB URI"
+          placeholder="mongodb+srv://user:password@cluster.mongodb.net/"
+          value={mongoUri}
+          onChange={(event) => setMongoUri(event.currentTarget.value)}
+          mb="sm"
+        />
+        {lastSyncAt ? (
+          <Text size="sm" c="dimmed" mb="xs">
+            ซิงค์ล่าสุด {lastSyncAt}
+          </Text>
+        ) : null}
+        {lastSyncError ? (
+          <Text size="sm" c="red" mb="xs">
+            {lastSyncError}
+          </Text>
+        ) : null}
+        <Group>
+          <Button variant="default" loading={syncSaving} onClick={() => void saveMongoUri()}>
+            ทดสอบและบันทึก URI
+          </Button>
+          <Button loading={syncSaving} onClick={() => void syncNow()}>
+            ซิงค์ตอนนี้
+          </Button>
+        </Group>
+      </section>
+
+      <section>
+        <Title order={4} mb="sm">
+          ข้อมูลสถานี
+        </Title>
+        <IdentityFields
+          identity={identity}
+          onChange={(patch) => setIdentity((current) => ({ ...current, ...patch }))}
+        />
+      </section>
+
+      <StationConfigEditor config={config} onChange={setConfig} />
+    </Stack>
+  )
+}

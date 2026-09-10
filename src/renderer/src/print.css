@@ -1,10 +1,69 @@
 @page {
-  size: A4;
-  margin: 16mm;
+  size: A4 landscape;
+  margin: 8mm 6mm;
 }
 
 html,
 body,
 #root {
+  margin: 0;
+  padding: 0;
   background: #fff;
+  color: #000;
+  font-family: 'Leelawadee UI', Tahoma, 'Segoe UI', sans-serif;
+}
+
+@media screen {
+  html,
+  body,
+  #root {
+    min-height: 100vh;
+    background: #d8d8d8;
+  }
+
+  #root {
+    box-sizing: border-box;
+    padding: 16px;
+  }
+
+  .kor-print-set {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .kor-page {
+    box-sizing: border-box;
+    width: 277mm;
+    max-width: 100%;
+    min-height: 190mm;
+    margin: 0 auto;
+    padding: 8mm 6mm;
+    background: #fff;
+  }
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    background: #fff;
+  }
+
+  .kor-print-set {
+    display: block;
+  }
+
+  .kor-page {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .kor-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
 }

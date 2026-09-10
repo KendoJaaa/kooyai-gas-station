@@ -1,26 +1,36 @@
 import { useEffect, useState, type JSX } from 'react'
-import { Box, Center, Loader, Text } from '@mantine/core'
-import { emptyRecord, type StationRecord } from '../../shared/types'
-import { RecordPreview } from './RecordPreview'
+import { Center, Loader, Text } from '@mantine/core'
+import { emptyDay, hasInvoicePage, type DayRecord } from '../../shared/reports'
+import { emptyStore, isAppStore, migrateStore, type AppStore } from '../../shared/store'
+import { isoToday, periodLabel, printedAtNow } from './kor-form/dates'
+import { KhorFormPage } from './kor-form/KhorFormPage'
+import { KorFormPage } from './kor-form/KorFormPage'
+import { KorInvoicePage } from './kor-form/KorInvoicePage'
+import { korHeaderFrom } from './kor-form/sampleHeader'
 import './print.css'
 
 export function PrintView(): JSX.Element {
-  const [record, setRecord] = useState<StationRecord | null>(null)
+  const [store, setStore] = useState<AppStore | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
+    if (!window.api) {
+      setStore(emptyStore(isoToday()))
+      return
+    }
+
     window.api
-      .loadForm()
-      .then((data) => {
+      .loadStore()
+      .then((loaded) => {
         if (cancelled) return
-        setRecord(data ?? emptyRecord())
+        setStore(loaded && isAppStore(loaded) ? migrateStore(loaded) : emptyStore(isoToday()))
       })
       .catch((err: unknown) => {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
-        setRecord(emptyRecord())
+        setStore(emptyStore(isoToday()))
       })
       .finally(() => {
         window.setTimeout(() => window.api.notifyPrintReady(), 50)
@@ -31,7 +41,7 @@ export function PrintView(): JSX.Element {
     }
   }, [])
 
-  if (!record) {
+  if (!store) {
     return (
       <Center h="100vh">
         <Loader color="teal" />
@@ -39,14 +49,48 @@ export function PrintView(): JSX.Element {
     )
   }
 
+  const date = store.activeDate || isoToday()
+  const day: DayRecord = store.days[date] ?? emptyDay()
+  const showInvoices = hasInvoicePage(day)
+  const pageCount = showInvoices ? 3 : 2
+  const header = korHeaderFrom(store.identity, periodLabel(date), printedAtNow())
+
   return (
-    <Box p="xl" bg="white" mih="100vh">
+    <div className="kor-print-set">
       {error ? (
-        <Text c="red" mb="md">
+        <Text c="red" mb="sm">
           {error}
         </Text>
       ) : null}
-      <RecordPreview record={record} />
-    </Box>
+      <KorFormPage
+        config={store.config}
+        date={date}
+        days={store.days}
+        day={day}
+        header={header}
+        page={1}
+        pageCount={pageCount}
+      />
+      {showInvoices ? (
+        <KorInvoicePage
+          config={store.config}
+          date={date}
+          days={store.days}
+          day={day}
+          header={header}
+          page={2}
+          pageCount={pageCount}
+        />
+      ) : null}
+      <KhorFormPage
+        config={store.config}
+        date={date}
+        days={store.days}
+        day={day}
+        header={header}
+        page={pageCount}
+        pageCount={pageCount}
+      />
+    </div>
   )
 }

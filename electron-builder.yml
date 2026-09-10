@@ -13,11 +13,15 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+  - node_modules/mongodb/**
+  - node_modules/bson/**
 win:
   executableName: kooyai-gas-station
   target:
     - nsis
+    - zip
 nsis:
+  include: build/installer.nsh
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
