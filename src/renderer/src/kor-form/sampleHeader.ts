@@ -1,4 +1,4 @@
-import type { StationIdentity } from '../../shared/station'
+import type { StationIdentity } from '../../../shared/station'
 
 export type KorFormHeaderValues = {
   period: string

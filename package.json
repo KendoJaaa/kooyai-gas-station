@@ -14,7 +14,8 @@
     "typecheck": "bun run typecheck:node && bun run typecheck:web",
     "build": "bun run typecheck && electron-vite build",
     "postinstall": "node node_modules/electron-builder/cli.js install-app-deps",
-    "build:win": "bun run build && electron-builder --win nsis"
+    "build:win": "bun run build && electron-builder --win nsis",
+    "build:win7": "bun scripts/build-win7.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

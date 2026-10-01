@@ -1,0 +1,49 @@
+# Windows 7 SP1, Windows 8, and Windows 8.1.
+# Electron 22.3.27 is the last release that still starts on those versions.
+# Build only through `bun run build:win7`, which sets ELECTRON_MAJOR_VER=22
+# so the bundle targets Chrome 108 and Node 16.17.
+appId: com.kooyai.gasstation
+productName: แบบบันทึกสถานีน้ำมัน
+copyright: Copyright © 2026 KendoJaaa
+electronVersion: "22.3.27"
+directories:
+  buildResources: build
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml,bun.lock}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!electron-builder.win7.yml'
+  - '!scripts/*'
+asarUnpack:
+  - resources/**
+  - node_modules/mongodb/**
+  - node_modules/bson/**
+win:
+  executableName: kooyai-gas-station
+  artifactName: ${name}-${version}-win7-${arch}.${ext}
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: nsis
+      arch:
+        - ia32
+    - target: zip
+      arch:
+        - x64
+        - ia32
+nsis:
+  include: build/installer.nsh
+  artifactName: ${name}-${version}-win7-${arch}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+npmRebuild: false
+publish: null

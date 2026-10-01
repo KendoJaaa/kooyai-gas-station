@@ -11,6 +11,12 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    server: {
+      fs: {
+        // Folder name contains ":", which Vite's strict file check rejects.
+        strict: false
+      }
+    }
   }
 })

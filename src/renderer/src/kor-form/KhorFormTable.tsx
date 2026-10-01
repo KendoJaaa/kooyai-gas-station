@@ -171,12 +171,9 @@ export function KhorFormTable({
 function MovementCell({
   sheet,
   row,
-  stickDraft,
   startDraft,
   editable,
-  invalidEnd,
   invalidStart,
-  onStickChange,
   onStartChange
 }: {
   sheet: KhorTankSheet

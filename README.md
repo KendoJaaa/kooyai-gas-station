@@ -35,6 +35,22 @@ bun run build:win
 
 The NSIS setup appears under `dist/`. Install on the uncle’s PC. After that it runs offline.
 
+## Windows 7
+
+Current `build:win` is Electron 39 and does not start on Windows 7. Windows 7 SP1, Windows 8, and Windows 8.1 use a separate installer pinned to Electron 22.3.27 (Chromium 108):
+
+```bash
+bun run build:win7
+```
+
+That writes NSIS setups under `dist/`:
+
+- `kooyai-gas-station-<version>-win7-setup.exe` — 32-bit and 64-bit in one installer
+- `kooyai-gas-station-<version>-win7-x64-setup.exe`
+- `kooyai-gas-station-<version>-win7-ia32-setup.exe`
+
+The PC needs Windows 7 SP1. Atlas sync from that build runs on Electron’s Node 16.17.1; the MongoDB driver asks for Node 16.20.1 or newer, so confirm sync once on the actual machine. A wrong system clock makes the Atlas connection fail.
+
 ## Data location
 
 The form is a JSON file in the OS user-data folder (not in the install directory), for example:
