@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { khorSheets, type DayRecord, type DeliveryNote } from '../../../shared/reports'
+import { khorSheets, type DayRecord } from '../../../shared/reports'
 import type { StationConfig } from '../../../shared/station'
 import { KorFormHeader } from './KorFormHeader'
 import { KhorFormTable } from './KhorFormTable'
@@ -17,8 +17,6 @@ export interface KhorFormPageProps {
   startDrafts?: Record<string, string>
   onStickChange?: (tankId: string, text: string) => void
   onStartChange?: (tankId: string, text: string) => void
-  onDeliveryChange?: (index: number, patch: Partial<DeliveryNote>) => void
-  onDeliveryLitersChange?: (index: number, tankId: string, text: string) => void
   fieldErrors?: Record<string, string>
 }
 
@@ -33,8 +31,6 @@ export function KhorFormPage({
   startDrafts,
   onStickChange,
   onStartChange,
-  onDeliveryChange,
-  onDeliveryLitersChange,
   fieldErrors
 }: KhorFormPageProps): JSX.Element {
   const sheets = khorSheets(config, date, days, day)
@@ -44,14 +40,11 @@ export function KhorFormPage({
       <KorFormHeader data={header} part="ส่วน ข." />
       <KhorFormTable
         sheets={sheets}
-        deliveries={day.deliveries}
         stickDrafts={stickDrafts}
         startDrafts={startDrafts}
         editable={editable}
         onStickChange={onStickChange}
         onStartChange={onStartChange}
-        onDeliveryChange={onDeliveryChange}
-        onDeliveryLitersChange={onDeliveryLitersChange}
         fieldErrors={fieldErrors}
       />
     </div>

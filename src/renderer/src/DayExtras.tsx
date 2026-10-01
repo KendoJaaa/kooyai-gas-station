@@ -1,13 +1,11 @@
 import type { JSX } from 'react'
-import { Accordion, Button, Group, Table, Text, TextInput } from '@mantine/core'
+import { Accordion, Button, Table, Text, TextInput } from '@mantine/core'
 import {
   adjustmentsFor,
   emptyDelivery,
-  emptyInvoiceLine,
   type DayRecord,
   type DeliveryNote,
-  type FuelAdjustments,
-  type TaxInvoiceLine
+  type FuelAdjustments
 } from '../../shared/reports'
 import { sortedFuelTypes, sortedTanks, type StationConfig } from '../../shared/station'
 import { entryInputProps } from './entryKeys'
@@ -39,11 +37,6 @@ export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): J
         [fuelTypeId]: { ...current, [field]: parsed }
       }
     })
-  }
-
-  const addInvoice = (kind: 'fullInvoices' | 'shortInvoices'): void => {
-    const list = day[kind].length > 0 ? day[kind] : [emptyInvoiceLine()]
-    onDayChange({ ...day, [kind]: [...list, emptyInvoiceLine()] })
   }
 
   const addDelivery = (): void => {
@@ -129,26 +122,6 @@ export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): J
               />
             </Table.Tbody>
           </Table>
-          </div>
-        </Accordion.Panel>
-      </Accordion.Item>
-
-      <Accordion.Item value="invoices">
-        <Accordion.Control>ใบกำกับภาษี — ข้ามได้ถ้าวันนี้ไม่มี</Accordion.Control>
-        <Accordion.Panel>
-          <div data-entry-group>
-            <InvoiceEditor
-              title="ใบกำกับภาษีเต็มรูป ม.86/4"
-              lines={day.fullInvoices}
-              onChange={(next) => onDayChange({ ...day, fullInvoices: next })}
-              onAdd={() => addInvoice('fullInvoices')}
-            />
-            <InvoiceEditor
-              title="ใบกำกับภาษีอย่างย่อ ม.86/6"
-              lines={day.shortInvoices}
-              onChange={(next) => onDayChange({ ...day, shortInvoices: next })}
-              onAdd={() => addInvoice('shortInvoices')}
-            />
           </div>
         </Accordion.Panel>
       </Accordion.Item>
@@ -269,99 +242,3 @@ function AdjustmentRow({
   )
 }
 
-function InvoiceEditor({
-  title,
-  lines,
-  onChange,
-  onAdd
-}: {
-  title: string
-  lines: TaxInvoiceLine[]
-  onChange: (lines: TaxInvoiceLine[]) => void
-  onAdd: () => void
-}): JSX.Element {
-  const rows = lines.length > 0 ? lines : [emptyInvoiceLine()]
-
-  const patch = (index: number, update: Partial<TaxInvoiceLine>): void => {
-    const next = lines.length > 0 ? [...lines] : [emptyInvoiceLine()]
-    next[index] = { ...next[index], ...update }
-    onChange(next)
-  }
-
-  return (
-    <div className="invoice-editor">
-      <Group justify="space-between" mb="xs">
-        <Text fw={600}>{title}</Text>
-        <Button size="xs" variant="light" onClick={onAdd}>
-          เพิ่มแถว
-        </Button>
-      </Group>
-      <Table withTableBorder withColumnBorders>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>เล่มที่</Table.Th>
-            <Table.Th>จากเลขที่</Table.Th>
-            <Table.Th>ถึงเลขที่</Table.Th>
-            <Table.Th>จำนวนฉบับ</Table.Th>
-            <Table.Th>มูลค่าสินค้า</Table.Th>
-            <Table.Th>ภาษีมูลค่าเพิ่ม</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {rows.map((line, index) => (
-            <Table.Tr key={`${title}-${index}`}>
-              <Table.Td>
-                <input
-                  {...entryInputProps}
-                  className="kor-input extras-input kor-input--text"
-                  value={line.bookNo}
-                  onChange={(event) => patch(index, { bookNo: event.target.value })}
-                />
-              </Table.Td>
-              <Table.Td>
-                <input
-                  {...entryInputProps}
-                  className="kor-input extras-input kor-input--text"
-                  value={line.fromNo}
-                  onChange={(event) => patch(index, { fromNo: event.target.value })}
-                />
-              </Table.Td>
-              <Table.Td>
-                <input
-                  {...entryInputProps}
-                  className="kor-input extras-input kor-input--text"
-                  value={line.toNo}
-                  onChange={(event) => patch(index, { toNo: event.target.value })}
-                />
-              </Table.Td>
-              <Table.Td>
-                <DecimalInput
-                  entry
-                  className="kor-input extras-input"
-                  value={line.count || null}
-                  onCommit={(parsed) => patch(index, { count: parsed ?? 0 })}
-                />
-              </Table.Td>
-              <Table.Td>
-                <DecimalInput
-                  entry
-                  className="kor-input extras-input"
-                  value={line.amount || null}
-                  onCommit={(parsed) => patch(index, { amount: parsed ?? 0 })}
-                />
-              </Table.Td>
-              <Table.Td>
-                <DecimalInput
-                  entry
-                  className="kor-input extras-input"
-                  value={line.vat || null}
-                  onCommit={(parsed) => patch(index, { vat: parsed ?? 0 })}
-                />
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </div>
-  )
-}

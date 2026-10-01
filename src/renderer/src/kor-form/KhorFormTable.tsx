@@ -1,18 +1,14 @@
 import type { JSX } from 'react'
-import type { DeliveryNote, KhorTankSheet } from '../../../shared/reports'
-import { DecimalInput } from './DecimalInput'
+import type { KhorTankSheet } from '../../../shared/reports'
 import { formatMeter } from './numbers'
 
 export interface KhorFormTableProps {
   sheets: KhorTankSheet[]
-  deliveries: DeliveryNote[]
   stickDrafts?: Record<string, string>
   startDrafts?: Record<string, string>
   editable?: boolean
   onStickChange?: (tankId: string, text: string) => void
   onStartChange?: (tankId: string, text: string) => void
-  onDeliveryChange?: (index: number, patch: Partial<DeliveryNote>) => void
-  onDeliveryLitersChange?: (index: number, tankId: string, text: string) => void
   fieldErrors?: Record<string, string>
 }
 
@@ -48,21 +44,13 @@ const MOVEMENT_ROWS: {
 
 export function KhorFormTable({
   sheets,
-  deliveries,
   stickDrafts = {},
   startDrafts = {},
   editable = false,
   onStickChange,
   onStartChange,
-  onDeliveryChange,
-  onDeliveryLitersChange,
   fieldErrors = {}
 }: KhorFormTableProps): JSX.Element {
-  const printDeliveries =
-    deliveries.length > 0
-      ? deliveries
-      : [{ seq: 1, number: '', date: '', wholesaler: '', issuer: '', litersByFuel: {}, litersByTank: {} }]
-
   return (
     <>
       <table className="kor-table khor-table">
@@ -99,65 +87,6 @@ export function KhorFormTable({
                     onStickChange={onStickChange}
                     onStartChange={onStartChange}
                   />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div className="khor-delivery-title">ใบจ่ายน้ำมัน / ใบกำกับภาษีขนส่งน้ำมัน</div>
-      <table className="kor-table khor-delivery-table">
-        <thead>
-          <tr>
-            <th>ลำดับ</th>
-            <th>เลขที่ใบจ่ายน้ำมัน</th>
-            <th>วันที่</th>
-            <th>คลังน้ำมันผู้ขายส่ง</th>
-            <th>ชื่อผู้จ่ายน้ำมัน</th>
-            {sheets.map((sheet) => (
-              <th key={sheet.tank.id}>{sheet.fuel.nameTh}<br />ถัง {sheet.tank.tankNo}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {printDeliveries.map((note, index) => (
-            <tr key={`${note.seq}-${index}`}>
-              <td className="kor-td-idx">{note.seq || index + 1}</td>
-              <DeliveryText
-                editable={editable}
-                value={note.number}
-                onChange={(text) => onDeliveryChange?.(index, { number: text })}
-              />
-              <DeliveryText
-                editable={editable}
-                value={note.date}
-                onChange={(text) => onDeliveryChange?.(index, { date: text })}
-              />
-              <DeliveryText
-                editable={editable}
-                value={note.wholesaler}
-                onChange={(text) => onDeliveryChange?.(index, { wholesaler: text })}
-              />
-              <DeliveryText
-                editable={editable}
-                value={note.issuer}
-                onChange={(text) => onDeliveryChange?.(index, { issuer: text })}
-              />
-              {sheets.map((sheet) => (
-                <td key={sheet.tank.id} className="kor-num kor-td-end">
-                  {editable ? (
-                    <DecimalInput
-                      className="kor-input"
-                      value={note.litersByTank?.[sheet.tank.id] || null}
-                      onCommit={(parsed) =>
-                        onDeliveryLitersChange?.(index, sheet.tank.id, parsed == null ? '' : String(parsed))
-                      }
-                      ariaLabel={`${sheet.fuel.nameTh} ถังที่ ${sheet.tank.tankNo} ยอดรับ`}
-                    />
-                  ) : (
-                    formatMeter(note.litersByTank?.[sheet.tank.id] || null)
-                  )}
                 </td>
               ))}
             </tr>
@@ -207,24 +136,4 @@ function MovementCell({
   }
 
   return formatMeter(typeof value === 'number' ? value : null)
-}
-
-function DeliveryText({
-  editable,
-  value,
-  onChange
-}: {
-  editable: boolean
-  value: string
-  onChange: (text: string) => void
-}): JSX.Element {
-  return (
-    <td className={editable ? 'kor-td-end' : undefined}>
-      {editable ? (
-        <input className="kor-input kor-input--text" value={value} onChange={(event) => onChange(event.target.value)} />
-      ) : (
-        value
-      )}
-    </td>
-  )
 }
