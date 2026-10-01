@@ -8,6 +8,8 @@ export type SyncSettings = {
   lastSyncError?: string
 }
 
+export type OpenPathResult = { ok: true } | { ok: false; message: string }
+
 export type PdfResult =
   | { ok: true; filePath: string }
   | { ok: false; canceled: true }

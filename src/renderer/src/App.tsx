@@ -3,6 +3,7 @@ import { AppShell, Button, Group } from '@mantine/core'
 import { needsSetup } from '../../shared/store'
 import { DailyPage } from './DailyPage'
 import { PrintView } from './PrintView'
+import { SalesTaxPrint } from './SalesTaxPrint'
 import { SettingsPage } from './SettingsPage'
 import { SetupPage } from './SetupPage'
 import { StationStoreProvider, useStationStore } from './StationStore'
@@ -10,10 +11,14 @@ import { StationStoreProvider, useStationStore } from './StationStore'
 type AppPage = 'daily' | 'settings' | 'setup'
 
 export default function App(): JSX.Element {
-  const isPrint = new URLSearchParams(window.location.search).get('print') === '1'
+  const printKind = new URLSearchParams(window.location.search).get('print')
 
-  if (isPrint) {
+  if (printKind === '1') {
     return <PrintView />
+  }
+
+  if (printKind === 'tax') {
+    return <SalesTaxPrint />
   }
 
   return (

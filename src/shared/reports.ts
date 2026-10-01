@@ -500,17 +500,6 @@ export function khorSheets(
   })
 }
 
-export function invoiceTotals(lines: TaxInvoiceLine[]): { amount: number; vat: number; count: number } {
-  return lines.reduce(
-    (sum, line) => ({
-      amount: roundBaht(sum.amount + (line.amount || 0)),
-      vat: roundBaht(sum.vat + (line.vat || 0)),
-      count: sum.count + (line.count || 0)
-    }),
-    { amount: 0, vat: 0, count: 0 }
-  )
-}
-
 function hasInvoiceLine(line: TaxInvoiceLine): boolean {
   return (
     line.bookNo.trim() !== '' ||
@@ -530,10 +519,6 @@ function hasDeliveryContent(note: DeliveryNote): boolean {
     Object.values(note.litersByFuel).some((value) => (value || 0) > 0) ||
     Object.values(note.litersByTank ?? {}).some((value) => (value || 0) > 0)
   )
-}
-
-export function hasInvoicePage(day: DayRecord): boolean {
-  return day.fullInvoices.some(hasInvoiceLine) || day.shortInvoices.some(hasInvoiceLine)
 }
 
 export function compactDay(day: DayRecord): DayRecord {

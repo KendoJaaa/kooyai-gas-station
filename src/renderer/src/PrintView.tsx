@@ -1,11 +1,10 @@
 import { useEffect, useState, type JSX } from 'react'
 import { Center, Loader, Text } from '@mantine/core'
-import { emptyDay, hasInvoicePage, type DayRecord } from '../../shared/reports'
+import { emptyDay, type DayRecord } from '../../shared/reports'
 import { emptyStore, isAppStore, migrateStore, type AppStore } from '../../shared/store'
 import { isoToday, periodLabel, printedAtNow } from './kor-form/dates'
 import { KhorFormPage } from './kor-form/KhorFormPage'
 import { KorFormPage } from './kor-form/KorFormPage'
-import { KorInvoicePage } from './kor-form/KorInvoicePage'
 import { korHeaderFrom } from './kor-form/sampleHeader'
 import './print.css'
 
@@ -51,8 +50,6 @@ export function PrintView(): JSX.Element {
 
   const date = store.activeDate || isoToday()
   const day: DayRecord = store.days[date] ?? emptyDay()
-  const showInvoices = hasInvoicePage(day)
-  const pageCount = showInvoices ? 3 : 2
   const header = korHeaderFrom(store.identity, periodLabel(date), printedAtNow())
 
   return (
@@ -68,28 +65,13 @@ export function PrintView(): JSX.Element {
         days={store.days}
         day={day}
         header={header}
-        page={1}
-        pageCount={pageCount}
       />
-      {showInvoices ? (
-        <KorInvoicePage
-          config={store.config}
-          date={date}
-          days={store.days}
-          day={day}
-          header={header}
-          page={2}
-          pageCount={pageCount}
-        />
-      ) : null}
       <KhorFormPage
         config={store.config}
         date={date}
         days={store.days}
         day={day}
         header={header}
-        page={pageCount}
-        pageCount={pageCount}
       />
     </div>
   )

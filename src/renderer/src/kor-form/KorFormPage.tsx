@@ -19,8 +19,6 @@ export interface KorFormPageProps {
   onEndingChange?: (machine: Machine, text: string) => void
   onPriceChange?: (fuelTypeId: string, text: string) => void
   fieldErrors?: Record<string, string>
-  page?: number
-  pageCount?: number
 }
 
 export function KorFormPage({
@@ -34,9 +32,7 @@ export function KorFormPage({
   editable = false,
   onEndingChange,
   onPriceChange,
-  fieldErrors,
-  page = 1,
-  pageCount = 1
+  fieldErrors
 }: KorFormPageProps): JSX.Element {
   const sheets = korSheets(config, date, days, day)
   const grand = korGrandTotals(sheets)
@@ -61,12 +57,46 @@ export function KorFormPage({
         <span>รวมภาษีขายสุทธิ {formatBaht(grand.outputVat)}</span>
         <span>รวมภาษีซื้อ {formatBaht(grand.inputVat)}</span>
       </div>
-      <footer className="kor-footer">
-        <span>rpt_vat_sec_a</span>
-        <span>
-          หน้า : {page} / {pageCount}
-        </span>
-      </footer>
+      <HandwritingLines />
     </div>
+  )
+}
+
+const HAND_COLUMNS = [
+  'เล่มที่',
+  'เลขที่',
+  'ถึงเลขที่',
+  'จำนวน',
+  'ฉบับ',
+  'ต้นทุนเงิน',
+  'บาท',
+  'ภาษีมูลค่าเพิ่ม',
+  'บาท',
+  'ภาษีมูลค่าซื้อ',
+  'บาท'
+] as const
+
+const HAND_ROWS = 8
+
+function HandwritingLines(): JSX.Element {
+  return (
+    <table className="kor-table kor-hand">
+      <thead>
+        <tr>
+          {HAND_COLUMNS.map((label, index) => (
+            <th key={`${label}-${index}`}>{label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: HAND_ROWS }, (_, row) => (
+          <tr key={row}>
+            {HAND_COLUMNS.map((label, index) => (
+              <td key={`${label}-${index}`} />
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }

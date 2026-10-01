@@ -1,0 +1,144 @@
+@page sales-tax {
+  size: A4 portrait;
+  margin: 10mm 8mm;
+}
+
+.sales-tax-sheet {
+  page: sales-tax;
+  box-sizing: border-box;
+  width: 194mm;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 8mm;
+  background: #fff;
+  color: #000;
+  font-family: 'Leelawadee UI', Tahoma, 'Segoe UI', sans-serif;
+  font-size: 11px;
+}
+
+.sales-tax-title {
+  display: inline-block;
+  margin: 0;
+  padding: 4px 16px;
+  border: 2px solid #9d174d;
+  border-radius: 999px;
+  color: #9d174d;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.sales-tax-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.sales-tax-month {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sales-tax-id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.sales-tax-digits {
+  display: flex;
+  gap: 2px;
+}
+
+.sales-tax-digits span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 16px;
+  border: 1px solid #000;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.sales-tax-check {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  border: 1px solid #000;
+  text-align: center;
+  font-size: 10px;
+  line-height: 12px;
+  vertical-align: -1px;
+}
+
+.sales-tax-table {
+  width: calc(100% - 1px);
+  margin-top: 8px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 8px;
+  line-height: 1.2;
+}
+
+.sales-tax-table th,
+.sales-tax-table td {
+  border: 0 solid #000;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+  padding: 2px 3px;
+  vertical-align: middle;
+}
+
+.sales-tax-table tr > :first-child {
+  border-left-width: 1px;
+}
+
+.sales-tax-table thead tr:first-child > * {
+  border-top-width: 1px;
+}
+
+.sales-tax-table th {
+  font-weight: 700;
+  text-align: center;
+}
+
+.sales-tax-table td {
+  height: 16px;
+}
+
+.sales-tax-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sales-tax-center {
+  text-align: center;
+}
+
+.sales-tax-total td {
+  font-weight: 700;
+}
+
+@media print {
+  .sales-tax-sheet {
+    width: auto;
+    padding: 0;
+  }
+
+  .sales-tax-table thead {
+    display: table-header-group;
+  }
+
+  .sales-tax-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

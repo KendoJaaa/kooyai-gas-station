@@ -115,7 +115,8 @@
 
 .kor-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
   margin-top: 4px;
   font-size: 9px;
@@ -126,9 +127,19 @@
 
 .kor-table th,
 .kor-table td {
-  border: 1px solid #000;
+  border: 0 solid #000;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
   padding: 2px 3px;
   vertical-align: middle;
+}
+
+.kor-table tr > :first-child {
+  border-left-width: 1px;
+}
+
+.kor-table thead tr:first-child > * {
+  border-top-width: 1px;
 }
 
 .kor-th-idx {
@@ -244,14 +255,6 @@
   text-align: right;
 }
 
-.kor-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-  font-size: 10px;
-  color: #000;
-}
-
 .kor-vat-bar {
   display: flex;
   justify-content: flex-end;
@@ -261,21 +264,41 @@
   font-weight: 600;
 }
 
-.kor-vat-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 10px 0 14px;
-  font-size: 12px;
+.kor-hand {
+  margin-top: 8px;
 }
 
-.kor-invoice {
-  margin-top: 12px;
+.kor-hand th {
+  font-size: 8px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.15;
+  padding: 2px 1px;
+  white-space: nowrap;
 }
 
-.kor-invoice__title {
-  font-weight: 700;
-  margin-bottom: 4px;
+.kor-hand th:nth-child(1) {
+  width: 8%;
+}
+
+.kor-hand th:nth-child(2),
+.kor-hand th:nth-child(3) {
+  width: 10%;
+}
+
+.kor-hand th:nth-child(4),
+.kor-hand th:nth-child(5) {
+  width: 7%;
+}
+
+.kor-hand th:nth-child(7),
+.kor-hand th:nth-child(9),
+.kor-hand th:nth-child(11) {
+  width: 5%;
+}
+
+.kor-hand td {
+  height: 20px;
 }
 
 .khor-th-label {

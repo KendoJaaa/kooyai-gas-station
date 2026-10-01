@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { AppShell, Button, Group, Modal, Stack, Text, Title } from '@mantine/core'
-import { DatePickerInput } from '@mantine/dates'
+import { DatePickerInput, MonthPickerInput } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
 import dayjs from 'dayjs'
 import {
@@ -24,6 +24,42 @@ import {
   issuesToErrorMap,
   validateDailyForm
 } from './kor-form/validateDaily'
+
+function showSavedPdf(title: string, filePath: string): void {
+  notifications.show({
+    color: 'teal',
+    title,
+    autoClose: 8000,
+    message: (
+      <button
+        type="button"
+        onClick={() => {
+          void window.api?.openPath(filePath).then((result) => {
+            if (result && !result.ok) {
+              notifications.show({ color: 'red', title: 'เปิดไฟล์ไม่ได้', message: result.message })
+            }
+          })
+        }}
+        style={{
+          display: 'block',
+          width: '100%',
+          margin: 0,
+          padding: 0,
+          border: 0,
+          background: 'none',
+          color: 'inherit',
+          font: 'inherit',
+          textAlign: 'left',
+          cursor: 'pointer',
+          wordBreak: 'break-all',
+          textDecoration: 'underline'
+        }}
+      >
+        {filePath}
+      </button>
+    )
+  })
+}
 
 function toIsoDate(value: Date | string | null): string {
   if (!value) return isoYesterday()
@@ -120,6 +156,9 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
   const [dirty, setDirty] = useState(false)
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [pendingDate, setPendingDate] = useState<string | null>(null)
+  const [taxOpen, setTaxOpen] = useState(false)
+  const [taxMonth, setTaxMonth] = useState<Date | null>(dayjs(isoYesterday()).startOf('month').toDate())
+  const [exportingTax, setExportingTax] = useState(false)
 
   const loadDate = (nextStore: AppStore, nextDate: string): void => {
     const rec = dayFor(nextStore, nextDate)
@@ -274,11 +313,7 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
         })
         return
       }
-      notifications.show({
-        color: 'teal',
-        title: 'บันทึกแล้ว และสร้าง PDF',
-        message: result.filePath
-      })
+      showSavedPdf('บันทึกแล้ว และสร้าง PDF', result.filePath)
     } finally {
       setSaving(false)
     }
@@ -300,6 +335,53 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
       setFieldErrors({})
     }
     void runSave(exportPdf)
+  }
+
+  const openTaxReport = (): void => {
+    setTaxMonth(dayjs(date).startOf('month').toDate())
+    setTaxOpen(true)
+  }
+
+  const savedDaysInTaxMonth = useMemo(() => {
+    if (!taxMonth) return 0
+    const month = dayjs(taxMonth).format('YYYY-MM')
+    return Object.keys(store.days).filter((key) => key.startsWith(`${month}-`)).length
+  }, [store.days, taxMonth])
+
+  const exportTaxReport = async (): Promise<void> => {
+    if (!taxMonth) return
+    const month = dayjs(taxMonth).format('YYYY-MM')
+    if (!window.api?.exportTaxPdf) {
+      notifications.show({
+        color: 'yellow',
+        title: 'โหมดดูตัวอย่าง',
+        message: 'ส่งออก PDF ได้เมื่อเปิดจากโปรแกรม'
+      })
+      return
+    }
+    setExportingTax(true)
+    try {
+      const result = await window.api.exportTaxPdf(month)
+      if (!result.ok) {
+        if ('canceled' in result && result.canceled) return
+        notifications.show({
+          color: 'red',
+          title: 'ส่งออกไม่สำเร็จ',
+          message: 'message' in result ? result.message : 'ส่งออก PDF ไม่สำเร็จ'
+        })
+        return
+      }
+      showSavedPdf('สร้าง PDF แล้ว', result.filePath)
+      setTaxOpen(false)
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        title: 'ส่งออกไม่สำเร็จ',
+        message: error instanceof Error ? error.message : 'ส่งออก PDF ไม่สำเร็จ'
+      })
+    } finally {
+      setExportingTax(false)
+    }
   }
 
   return (
@@ -338,6 +420,9 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
             </Button>
             <Button loading={saving} onClick={() => onSave(true)}>
               บันทึก และส่งออก PDF
+            </Button>
+            <Button variant="default" size="sm" onClick={openTaxReport}>
+              รายงานภาษีขาย
             </Button>
             <Button variant="subtle" onClick={onOpenSettings}>
               ตั้งค่า
@@ -460,6 +545,43 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
                   }}
                 >
                   ใช่ บันทึก
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
+
+          <Modal opened={taxOpen} onClose={() => setTaxOpen(false)} title="รายงานภาษีขาย" centered>
+            <Stack gap="md">
+              <Text size="sm">
+                รวมทุกวันในเดือนที่เลือก จากยอดปิดรายวันที่บันทึกไว้ มูลค่าสินค้าและภาษีขายใช้ตัวเลขชุดเดียวกับส่วน ก
+              </Text>
+              <MonthPickerInput
+                label="เดือนภาษี"
+                locale="th"
+                valueFormat="MMMM BBBB"
+                value={taxMonth}
+                maxDate={dayjs(isoToday()).toDate()}
+                minDate={dayjs(retentionStart(isoToday())).toDate()}
+                onChange={(value) => {
+                  if (!value) {
+                    setTaxMonth(null)
+                    return
+                  }
+                  const parsed = dayjs(value as Date | string)
+                  setTaxMonth(parsed.isValid() ? parsed.startOf('month').toDate() : null)
+                }}
+              />
+              <Text size="sm" c="dimmed">
+                {savedDaysInTaxMonth > 0
+                  ? `บันทึกไว้แล้ว ${savedDaysInTaxMonth} วัน วันที่ยังไม่ปิดยอดจะเป็นช่องว่าง`
+                  : 'เดือนนี้ยังไม่มีวันปิดยอด รายงานจะเป็นช่องว่างทุกวัน'}
+              </Text>
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setTaxOpen(false)}>
+                  ยกเลิก
+                </Button>
+                <Button loading={exportingTax} onClick={() => void exportTaxReport()}>
+                  ส่งออก PDF
                 </Button>
               </Group>
             </Stack>

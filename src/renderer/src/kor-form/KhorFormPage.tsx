@@ -20,8 +20,6 @@ export interface KhorFormPageProps {
   onDeliveryChange?: (index: number, patch: Partial<DeliveryNote>) => void
   onDeliveryLitersChange?: (index: number, tankId: string, text: string) => void
   fieldErrors?: Record<string, string>
-  page?: number
-  pageCount?: number
 }
 
 export function KhorFormPage({
@@ -37,9 +35,7 @@ export function KhorFormPage({
   onStartChange,
   onDeliveryChange,
   onDeliveryLitersChange,
-  fieldErrors,
-  page = 1,
-  pageCount = 1
+  fieldErrors
 }: KhorFormPageProps): JSX.Element {
   const sheets = khorSheets(config, date, days, day)
 
@@ -58,12 +54,6 @@ export function KhorFormPage({
         onDeliveryLitersChange={onDeliveryLitersChange}
         fieldErrors={fieldErrors}
       />
-      <footer className="kor-footer">
-        <span>rpt_vat_sec_b</span>
-        <span>
-          หน้า : {page} / {pageCount}
-        </span>
-      </footer>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { join } from 'path'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile, writeFile, mkdir, stat } from 'fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { emptyStore, isAppStore, migrateStore, type AppStore } from '../shared/store'
 import { mergeStores, touchStore } from '../shared/sync'
@@ -24,6 +24,12 @@ function pdfFileName(isoDate: string): string {
   if (!match) return 'รายงานส่วนก-ข.pdf'
   const be = String(Number(match[1]) + 543)
   return `รายงานส่วนก-ข-${match[3]}-${match[2]}-${be}.pdf`
+}
+
+function taxPdfFileName(month: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!match) return 'รายงานภาษีขาย.pdf'
+  return `รายงานภาษีขาย-${match[2]}-${Number(match[1]) + 543}.pdf`
 }
 
 function storePath(): string {
@@ -170,10 +176,11 @@ function waitForPrintReady(printWindow: BrowserWindow, timeoutMs = 12_000): Prom
   })
 }
 
-async function exportPdf(): Promise<PdfResult> {
+async function exportPdf(kind: 'daily' | 'tax' = 'daily', month = ''): Promise<PdfResult> {
+  const tax = kind === 'tax'
   const printWindow = new BrowserWindow({
-    width: 1123,
-    height: 794,
+    width: tax ? 794 : 1123,
+    height: tax ? 1123 : 794,
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -185,28 +192,40 @@ async function exportPdf(): Promise<PdfResult> {
 
   try {
     const ready = waitForPrintReady(printWindow)
+    const search = tax ? `?print=tax&month=${encodeURIComponent(month)}` : '?print=1'
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      await printWindow.loadURL(rendererUrl('?print=1'))
+      await printWindow.loadURL(rendererUrl(search))
     } else {
       await printWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        query: { print: '1' }
+        query: tax ? { print: 'tax', month } : { print: '1' }
       })
     }
 
     await ready
 
-    const pdf = await printWindow.webContents.printToPDF({
-      printBackground: true,
-      pageSize: 'A4',
-      landscape: true,
-      preferCSSPageSize: true
-    })
+    const pdf = await printWindow.webContents.printToPDF(
+      tax
+        ? {
+            printBackground: true,
+            pageSize: 'A4',
+            landscape: false,
+            preferCSSPageSize: true,
+            margins: { marginType: 'custom', top: 0.35, bottom: 0.35, left: 0.3, right: 0.3 }
+          }
+        : {
+            printBackground: true,
+            pageSize: 'A4',
+            landscape: true,
+            preferCSSPageSize: true
+          }
+    )
 
     const saved = await loadStore()
+    const defaultName = tax ? taxPdfFileName(month) : pdfFileName(saved.activeDate || todayIso())
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'บันทึกไฟล์ PDF',
-      defaultPath: join(app.getPath('documents'), pdfFileName(saved.activeDate || todayIso())),
+      defaultPath: join(app.getPath('documents'), defaultName),
       filters: [{ name: 'PDF', extensions: ['pdf'] }]
     })
 
@@ -280,7 +299,29 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('pdf:export', async (): Promise<PdfResult> => {
-    return exportPdf()
+    return exportPdf('daily')
+  })
+
+  ipcMain.handle('pdf:exportTax', async (_event, month: unknown): Promise<PdfResult> => {
+    if (typeof month !== 'string' || !/^\d{4}-\d{2}$/.test(month)) {
+      return { ok: false, message: 'เดือนไม่ถูกต้อง' }
+    }
+    return exportPdf('tax', month)
+  })
+
+  ipcMain.handle('file:open', async (_event, filePath: unknown): Promise<{ ok: true } | { ok: false; message: string }> => {
+    if (typeof filePath !== 'string' || !filePath.toLowerCase().endsWith('.pdf')) {
+      return { ok: false, message: 'เปิดไฟล์ไม่ได้' }
+    }
+    try {
+      const info = await stat(filePath)
+      if (!info.isFile()) return { ok: false, message: 'เปิดไฟล์ไม่ได้' }
+    } catch {
+      return { ok: false, message: 'หาไฟล์ไม่เจอ' }
+    }
+    const error = await shell.openPath(filePath)
+    if (error) return { ok: false, message: 'เปิดไฟล์ไม่ได้' }
+    return { ok: true }
   })
 
   createWindow()
