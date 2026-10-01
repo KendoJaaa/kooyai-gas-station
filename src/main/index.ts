@@ -99,52 +99,57 @@ function syncErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'เชื่อมต่อ MongoDB ไม่สำเร็จ'
 }
 
-async function pullAndMerge(local: AppStore, uri: string): Promise<AppStore> {
-  const today = todayIso()
-  const prunedLocal = pruneOldDays(local, today)
+async function saveToCompanyDatabase(
+  local: AppStore,
+  uri: string,
+  preferLocal: boolean
+): Promise<AppStore> {
+  const incoming = preferLocal ? touchStore(local) : local
   const remote = await pullRemoteStore(uri)
-  if (!remote) return prunedLocal
-  const merged = pruneOldDays(mergeStores(prunedLocal, remote), today)
-  await writeLocalStore(merged)
-  if (Object.keys(merged.days).length < Object.keys(remote.days).length) {
-    await pushRemoteStore(uri, touchStore(merged))
-  }
-  return merged
+  const cloud = touchStore(remote ? mergeStores(incoming, remote) : incoming)
+  await pushRemoteStore(uri, cloud)
+  const onThisPc = pruneOldDays(cloud, todayIso())
+  await writeLocalStore(onThisPc)
+  return onThisPc
 }
 
 async function loadStore(): Promise<AppStore> {
-  const local = pruneOldDays(await loadLocalStore(), todayIso())
+  const local = await loadLocalStore()
   const uri = await companyDatabaseUri()
   const settings = await loadSyncSettings()
   if (!uri) {
-    await writeLocalStore(local)
-    return local
+    const onThisPc = pruneOldDays(local, todayIso())
+    await writeLocalStore(onThisPc)
+    return onThisPc
   }
   try {
-    const merged = await pullAndMerge(local, uri)
+    const onThisPc = await saveToCompanyDatabase(local, uri, false)
     await saveSyncSettings({
       ...settings,
       lastSyncAt: new Date().toISOString(),
       lastSyncError: undefined
     })
-    return merged
+    return onThisPc
   } catch (error) {
     await saveSyncSettings({
       ...settings,
       lastSyncError: syncErrorMessage(error)
     })
-    return local
+    const onThisPc = pruneOldDays(local, todayIso())
+    await writeLocalStore(onThisPc)
+    return onThisPc
   }
 }
 
 async function saveStore(store: AppStore): Promise<SaveResult> {
-  const stamped = touchStore(pruneOldDays(store, todayIso()))
-  await writeLocalStore(stamped)
   const uri = await companyDatabaseUri()
   const settings = await loadSyncSettings()
-  if (!uri) return { ok: true, synced: false, syncMessage: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
+  if (!uri) {
+    await writeLocalStore(touchStore(pruneOldDays(store, todayIso())))
+    return { ok: true, synced: false, syncMessage: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
+  }
   try {
-    await pushRemoteStore(uri, stamped)
+    await saveToCompanyDatabase(store, uri, true)
     await saveSyncSettings({
       ...settings,
       lastSyncAt: new Date().toISOString(),
@@ -152,6 +157,7 @@ async function saveStore(store: AppStore): Promise<SaveResult> {
     })
     return { ok: true, synced: true }
   } catch (error) {
+    await writeLocalStore(touchStore(pruneOldDays(store, todayIso())))
     const message = syncErrorMessage(error)
     await saveSyncSettings({ ...settings, lastSyncError: message })
     return { ok: true, synced: false, syncMessage: message }
@@ -285,8 +291,7 @@ app.whenReady().then(() => {
       }
       const local = await loadLocalStore()
       const settings = await loadSyncSettings()
-      const merged = await pullAndMerge(local, uri)
-      await pushRemoteStore(uri, touchStore(merged))
+      await saveToCompanyDatabase(local, uri, false)
       await saveSyncSettings({
         ...settings,
         lastSyncAt: new Date().toISOString(),
