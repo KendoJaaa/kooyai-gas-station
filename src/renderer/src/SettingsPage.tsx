@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
-import { Button, Group, PasswordInput, Stack, Text, Title } from '@mantine/core'
+import { Button, Group, Stack, Text, Title } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import {
   prepareIdentity,
@@ -19,15 +19,15 @@ export function SettingsPage({ onOpenSetup }: { onOpenSetup: () => void }): JSX.
   const [saving, setSaving] = useState(false)
   const [identity, setIdentity] = useState<StationIdentity>(store.identity)
   const [config, setConfig] = useState<StationConfig>(store.config)
-  const [mongoUri, setMongoUri] = useState('')
   const [syncSaving, setSyncSaving] = useState(false)
+  const [sharedDatabase, setSharedDatabase] = useState(false)
   const [lastSyncAt, setLastSyncAt] = useState<string | undefined>()
   const [lastSyncError, setLastSyncError] = useState<string | undefined>()
 
   useEffect(() => {
     if (!window.api?.getSyncSettings) return
     void window.api.getSyncSettings().then((settings) => {
-      setMongoUri(settings.mongodbUri)
+      setSharedDatabase(settings.configured)
       setLastSyncAt(settings.lastSyncAt)
       setLastSyncError(settings.lastSyncError)
     })
@@ -89,37 +89,6 @@ export function SettingsPage({ onOpenSetup }: { onOpenSetup: () => void }): JSX.
     }
   }
 
-  const saveMongoUri = async (): Promise<void> => {
-    if (!window.api?.saveSyncUri) {
-      notifications.show({ color: 'yellow', title: 'โหมดดูตัวอย่าง', message: 'บันทึก URI ได้เมื่อเปิดจากโปรแกรม' })
-      return
-    }
-    setSyncSaving(true)
-    try {
-      const result = await window.api.saveSyncUri(mongoUri)
-      if (!result.ok) {
-        notifications.show({ color: 'red', title: 'เชื่อมต่อไม่ได้', message: result.message })
-        return
-      }
-      const settings = await window.api.getSyncSettings()
-      setLastSyncAt(settings.lastSyncAt)
-      setLastSyncError(undefined)
-      notifications.show({
-        color: 'teal',
-        title: 'บันทึก URI แล้ว',
-        message: mongoUri.trim() ? 'เครื่องนี้จะซิงค์ตอนเปิดแอปและตอนบันทึก' : 'ปิดการซิงค์แล้ว'
-      })
-    } catch (error) {
-      notifications.show({
-        color: 'red',
-        title: 'บันทึก URI ไม่สำเร็จ',
-        message: error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'
-      })
-    } finally {
-      setSyncSaving(false)
-    }
-  }
-
   const syncNow = async (): Promise<void> => {
     if (!window.api?.syncNow) return
     setSyncSaving(true)
@@ -134,6 +103,7 @@ export function SettingsPage({ onOpenSetup }: { onOpenSetup: () => void }): JSX.
       setIdentity(loaded.identity)
       setConfig(loaded.config)
       const settings = await window.api.getSyncSettings()
+      setSharedDatabase(settings.configured)
       setLastSyncAt(settings.lastSyncAt)
       setLastSyncError(undefined)
       notifications.show({ color: 'teal', title: 'ซิงค์แล้ว', message: 'ดึงจาก Atlas แล้วบันทึกกลับขึ้นไป' })
@@ -165,20 +135,21 @@ export function SettingsPage({ onOpenSetup }: { onOpenSetup: () => void }): JSX.
 
       <section>
         <Title order={4} mb="sm">
-          ซิงค์ MongoDB Atlas
+          ฐานข้อมูลบริษัท
         </Title>
         <Text size="sm" c="dimmed" mb="sm">
-          ใช้คลัสเตอร์ฟรีที่ mongodb.com แล้ววาง Connection string ที่นี่ ทั้งสองเครื่องใส่ URI เดียวกัน
-          Network Access ต้องเปิด 0.0.0.0/0 เพราะร้านอยู่คนละที่
-          ข้อมูลยังบันทึกในเครื่อง ถ้าเน็ตขาดก็ใช้ต่อได้ ซิงค์เมื่อเน็ตกลับ
+          ทุกเครื่องที่ติดตั้งโปรแกรมนี้ใช้ฐานข้อมูลเดียวกัน ไม่ต้องตั้งค่าแยกในแต่ละเครื่อง
+          ข้อมูลยังเก็บในเครื่องไว้ใช้ตอนเน็ตขาด และซิงค์เมื่อเน็ตกลับ
         </Text>
-        <PasswordInput
-          label="MongoDB URI"
-          placeholder="mongodb+srv://user:password@cluster.mongodb.net/"
-          value={mongoUri}
-          onChange={(event) => setMongoUri(event.currentTarget.value)}
-          mb="sm"
-        />
+        {sharedDatabase ? (
+          <Text size="sm" mb="xs">
+            เชื่อมกับฐานข้อมูลบริษัทแล้ว
+          </Text>
+        ) : (
+          <Text size="sm" c="red" mb="xs">
+            รุ่นนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท
+          </Text>
+        )}
         {lastSyncAt ? (
           <Text size="sm" c="dimmed" mb="xs">
             ซิงค์ล่าสุด {lastSyncAt}
@@ -189,14 +160,9 @@ export function SettingsPage({ onOpenSetup }: { onOpenSetup: () => void }): JSX.
             {lastSyncError}
           </Text>
         ) : null}
-        <Group>
-          <Button variant="default" loading={syncSaving} onClick={() => void saveMongoUri()}>
-            ทดสอบและบันทึก URI
-          </Button>
-          <Button loading={syncSaving} onClick={() => void syncNow()}>
-            ซิงค์ตอนนี้
-          </Button>
-        </Group>
+        <Button loading={syncSaving} disabled={!sharedDatabase} onClick={() => void syncNow()}>
+          ซิงค์ตอนนี้
+        </Button>
       </section>
 
       <section>

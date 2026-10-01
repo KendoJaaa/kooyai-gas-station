@@ -3,12 +3,10 @@ export type SaveResult =
   | { ok: false; message: string }
 
 export type SyncSettings = {
-  mongodbUri: string
+  configured: boolean
   lastSyncAt?: string
   lastSyncError?: string
 }
-
-export type SyncTestResult = { ok: true } | { ok: false; message: string }
 
 export type PdfResult =
   | { ok: true; filePath: string }

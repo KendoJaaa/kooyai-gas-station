@@ -10,6 +10,7 @@ import {
   type TaxInvoiceLine
 } from '../../shared/reports'
 import { sortedFuelTypes, sortedTanks, type StationConfig } from '../../shared/station'
+import { entryInputProps } from './entryKeys'
 import { DecimalInput } from './kor-form/DecimalInput'
 import { parseMeter } from './kor-form/numbers'
 
@@ -80,6 +81,7 @@ export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): J
           <Text size="sm" c="dimmed" mb="sm">
             ทดสอบน้ำมันหักในส่วน ก และบวกกลับถังในส่วน ข ดีเซลใส่ที่ถังแรกของชนิดนั้น (หัว 1, 5)
           </Text>
+          <div data-entry-group>
           <Table striped withTableBorder withColumnBorders>
             <Table.Thead>
               <Table.Tr>
@@ -127,24 +129,27 @@ export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): J
               />
             </Table.Tbody>
           </Table>
+          </div>
         </Accordion.Panel>
       </Accordion.Item>
 
       <Accordion.Item value="invoices">
         <Accordion.Control>ใบกำกับภาษี — ข้ามได้ถ้าวันนี้ไม่มี</Accordion.Control>
         <Accordion.Panel>
-          <InvoiceEditor
-            title="ใบกำกับภาษีเต็มรูป ม.86/4"
-            lines={day.fullInvoices}
-            onChange={(next) => onDayChange({ ...day, fullInvoices: next })}
-            onAdd={() => addInvoice('fullInvoices')}
-          />
-          <InvoiceEditor
-            title="ใบกำกับภาษีอย่างย่อ ม.86/6"
-            lines={day.shortInvoices}
-            onChange={(next) => onDayChange({ ...day, shortInvoices: next })}
-            onAdd={() => addInvoice('shortInvoices')}
-          />
+          <div data-entry-group>
+            <InvoiceEditor
+              title="ใบกำกับภาษีเต็มรูป ม.86/4"
+              lines={day.fullInvoices}
+              onChange={(next) => onDayChange({ ...day, fullInvoices: next })}
+              onAdd={() => addInvoice('fullInvoices')}
+            />
+            <InvoiceEditor
+              title="ใบกำกับภาษีอย่างย่อ ม.86/6"
+              lines={day.shortInvoices}
+              onChange={(next) => onDayChange({ ...day, shortInvoices: next })}
+              onAdd={() => addInvoice('shortInvoices')}
+            />
+          </div>
         </Accordion.Panel>
       </Accordion.Item>
 
@@ -155,6 +160,7 @@ export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): J
             วันนี้ไม่มีรถบรรทุก ข้ามได้
           </Text>
           {day.deliveries.length > 0 ? (
+            <div data-entry-group>
             <Table withTableBorder withColumnBorders mb="sm">
               <Table.Thead>
                 <Table.Tr>
@@ -176,24 +182,28 @@ export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): J
                     <Table.Td>{note.seq || index + 1}</Table.Td>
                     <Table.Td>
                       <TextInput
+                        {...entryInputProps}
                         value={note.number}
                         onChange={(event) => patchDelivery(index, { number: event.target.value })}
                       />
                     </Table.Td>
                     <Table.Td>
                       <TextInput
+                        {...entryInputProps}
                         value={note.date}
                         onChange={(event) => patchDelivery(index, { date: event.target.value })}
                       />
                     </Table.Td>
                     <Table.Td>
                       <TextInput
+                        {...entryInputProps}
                         value={note.wholesaler}
                         onChange={(event) => patchDelivery(index, { wholesaler: event.target.value })}
                       />
                     </Table.Td>
                     <Table.Td>
                       <TextInput
+                        {...entryInputProps}
                         value={note.issuer}
                         onChange={(event) => patchDelivery(index, { issuer: event.target.value })}
                       />
@@ -201,6 +211,7 @@ export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): J
                     {tanks.map((tank) => (
                       <Table.Td key={tank.id}>
                         <DecimalInput
+                          entry
                           className="kor-input extras-input"
                           value={note.litersByTank?.[tank.id] || null}
                           onCommit={(parsed) =>
@@ -213,6 +224,7 @@ export function DayExtras({ config, date, day, onDayChange }: DayExtrasProps): J
                 ))}
               </Table.Tbody>
             </Table>
+            </div>
           ) : null}
           <Button mt="sm" variant="light" onClick={addDelivery}>
             เพิ่มแถวใบจ่ายน้ำมัน
@@ -244,6 +256,7 @@ function AdjustmentRow({
         return (
           <Table.Td key={fuel.id}>
             <DecimalInput
+              entry
               className="kor-input extras-input"
               value={value || null}
               onCommit={(parsed) => onChange(fuel.id, field, parsed == null ? '' : String(parsed))}
@@ -299,6 +312,7 @@ function InvoiceEditor({
             <Table.Tr key={`${title}-${index}`}>
               <Table.Td>
                 <input
+                  {...entryInputProps}
                   className="kor-input extras-input kor-input--text"
                   value={line.bookNo}
                   onChange={(event) => patch(index, { bookNo: event.target.value })}
@@ -306,6 +320,7 @@ function InvoiceEditor({
               </Table.Td>
               <Table.Td>
                 <input
+                  {...entryInputProps}
                   className="kor-input extras-input kor-input--text"
                   value={line.fromNo}
                   onChange={(event) => patch(index, { fromNo: event.target.value })}
@@ -313,6 +328,7 @@ function InvoiceEditor({
               </Table.Td>
               <Table.Td>
                 <input
+                  {...entryInputProps}
                   className="kor-input extras-input kor-input--text"
                   value={line.toNo}
                   onChange={(event) => patch(index, { toNo: event.target.value })}
@@ -320,6 +336,7 @@ function InvoiceEditor({
               </Table.Td>
               <Table.Td>
                 <DecimalInput
+                  entry
                   className="kor-input extras-input"
                   value={line.count || null}
                   onCommit={(parsed) => patch(index, { count: parsed ?? 0 })}
@@ -327,6 +344,7 @@ function InvoiceEditor({
               </Table.Td>
               <Table.Td>
                 <DecimalInput
+                  entry
                   className="kor-input extras-input"
                   value={line.amount || null}
                   onCommit={(parsed) => patch(index, { amount: parsed ?? 0 })}
@@ -334,6 +352,7 @@ function InvoiceEditor({
               </Table.Td>
               <Table.Td>
                 <DecimalInput
+                  entry
                   className="kor-input extras-input"
                   value={line.vat || null}
                   onCommit={(parsed) => patch(index, { vat: parsed ?? 0 })}

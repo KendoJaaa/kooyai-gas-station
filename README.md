@@ -53,6 +53,14 @@ The PC needs Windows 7 SP1. Atlas sync from that build runs on Electron’s Node
 
 ## Data location
 
-The form is a JSON file in the OS user-data folder (not in the install directory), for example:
+The form is cached as JSON in the OS user-data folder (not in the install directory), for example:
 
-`%APPDATA%\แบบบันทึกสถานีน้ำมัน\record.json`
+`%APPDATA%\แบบบันทึกสถานีน้ำมัน\station.json`
+
+Every install shares one company database. The connection is `resources/company-db.json`, which is not committed:
+
+```json
+{ "mongodbUri": "mongodb+srv://USER:PASSWORD@cluster.mongodb.net/" }
+```
+
+Rebuild the installer after adding that file. Machines do not enter their own address.

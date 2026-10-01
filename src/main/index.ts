@@ -4,8 +4,10 @@ import { readFile, writeFile, mkdir } from 'fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { emptyStore, isAppStore, migrateStore, type AppStore } from '../shared/store'
 import { mergeStores, touchStore } from '../shared/sync'
-import type { PdfResult, SaveResult, SyncSettings, SyncTestResult } from '../shared/types'
-import { isMongoUri, pullRemoteStore, pushRemoteStore, testMongoUri } from './mongo'
+import { pruneOldDays } from '../shared/retention'
+import type { PdfResult, SaveResult, SyncSettings } from '../shared/types'
+import { pullRemoteStore, pushRemoteStore } from './mongo'
+import { companyDatabaseUri } from './companyDb'
 import { loadSyncSettings, saveSyncSettings } from './syncSettings'
 
 const STORE_FILE = 'station.json'
@@ -92,19 +94,28 @@ function syncErrorMessage(error: unknown): string {
 }
 
 async function pullAndMerge(local: AppStore, uri: string): Promise<AppStore> {
+  const today = todayIso()
+  const prunedLocal = pruneOldDays(local, today)
   const remote = await pullRemoteStore(uri)
-  if (!remote) return local
-  const merged = mergeStores(local, remote)
+  if (!remote) return prunedLocal
+  const merged = pruneOldDays(mergeStores(prunedLocal, remote), today)
   await writeLocalStore(merged)
+  if (Object.keys(merged.days).length < Object.keys(remote.days).length) {
+    await pushRemoteStore(uri, touchStore(merged))
+  }
   return merged
 }
 
 async function loadStore(): Promise<AppStore> {
-  const local = await loadLocalStore()
+  const local = pruneOldDays(await loadLocalStore(), todayIso())
+  const uri = await companyDatabaseUri()
   const settings = await loadSyncSettings()
-  if (!settings.mongodbUri.trim()) return local
+  if (!uri) {
+    await writeLocalStore(local)
+    return local
+  }
   try {
-    const merged = await pullAndMerge(local, settings.mongodbUri)
+    const merged = await pullAndMerge(local, uri)
     await saveSyncSettings({
       ...settings,
       lastSyncAt: new Date().toISOString(),
@@ -121,12 +132,13 @@ async function loadStore(): Promise<AppStore> {
 }
 
 async function saveStore(store: AppStore): Promise<SaveResult> {
-  const stamped = touchStore(store)
+  const stamped = touchStore(pruneOldDays(store, todayIso()))
   await writeLocalStore(stamped)
+  const uri = await companyDatabaseUri()
   const settings = await loadSyncSettings()
-  if (!settings.mongodbUri.trim()) return { ok: true }
+  if (!uri) return { ok: true, synced: false, syncMessage: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
   try {
-    await pushRemoteStore(settings.mongodbUri, stamped)
+    await pushRemoteStore(uri, stamped)
     await saveSyncSettings({
       ...settings,
       lastSyncAt: new Date().toISOString(),
@@ -237,39 +249,25 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('sync:getSettings', async (): Promise<SyncSettings> => {
-    return loadSyncSettings()
-  })
-
-  ipcMain.handle('sync:saveUri', async (_event, uri: string): Promise<SyncTestResult> => {
-    const trimmed = uri.trim()
-    if (trimmed && !isMongoUri(trimmed)) {
-      return { ok: false, message: 'URI ต้องขึ้นต้นด้วย mongodb:// หรือ mongodb+srv://' }
+    const settings = await loadSyncSettings()
+    const uri = await companyDatabaseUri()
+    return {
+      configured: Boolean(uri),
+      lastSyncAt: settings.lastSyncAt,
+      lastSyncError: settings.lastSyncError
     }
-    const current = await loadSyncSettings()
-    if (trimmed) {
-      try {
-        await testMongoUri(trimmed)
-      } catch (error) {
-        return { ok: false, message: syncErrorMessage(error) }
-      }
-    }
-    await saveSyncSettings({
-      mongodbUri: trimmed,
-      lastSyncAt: current.lastSyncAt,
-      lastSyncError: undefined
-    })
-    return { ok: true }
   })
 
   ipcMain.handle('sync:now', async (): Promise<SaveResult> => {
     try {
+      const uri = await companyDatabaseUri()
+      if (!uri) {
+        return { ok: false, message: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
+      }
       const local = await loadLocalStore()
       const settings = await loadSyncSettings()
-      if (!settings.mongodbUri.trim()) {
-        return { ok: false, message: 'ยังไม่ได้ใส่ MongoDB URI' }
-      }
-      const merged = await pullAndMerge(local, settings.mongodbUri)
-      await pushRemoteStore(settings.mongodbUri, touchStore(merged))
+      const merged = await pullAndMerge(local, uri)
+      await pushRemoteStore(uri, touchStore(merged))
       await saveSyncSettings({
         ...settings,
         lastSyncAt: new Date().toISOString(),

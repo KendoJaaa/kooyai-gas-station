@@ -1,5 +1,5 @@
 import type { JSX, ReactNode } from 'react'
-import { Paper, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core'
+import { Paper, SimpleGrid, Stack, Table, Text, TextInput, Title, type TextInputProps } from '@mantine/core'
 import { khorSheets, meterHistory, priceForFuel, type DayRecord } from '../../shared/reports'
 import {
   activeMachines,
@@ -16,6 +16,11 @@ import {
 } from '../../shared/station'
 import { formatBaht, formatMeter, parseMeter } from './kor-form/numbers'
 import { periodLabel } from './kor-form/dates'
+import { entryInputProps } from './entryKeys'
+
+function EntryInput(props: TextInputProps): JSX.Element {
+  return <TextInput {...props} {...entryInputProps} />
+}
 
 export function DailyCloseSheet({
   config,
@@ -77,13 +82,13 @@ export function DailyCloseSheet({
   })
 
   return (
-    <Stack gap="lg">
+    <Stack gap="lg" data-entry-group>
       <Paper withBorder p="md" radius="md">
         <Title order={4} mb="xs">
           มิเตอร์เช้านี้ — ตามเลขหัวจ่าย
         </Title>
         <Text size="sm" c="dimmed" mb="sm">
-          กรอกเลขมิเตอร์ตอนเช้านี้ เป็นปลายงวดของเมื่อวาน และจะไปเป็นต้นงวดของวันนี้ กดแท็บไปหัวถัดไปตามลำดับ 1, 2, 3…
+          กรอกเลขมิเตอร์ตอนเช้านี้ เป็นปลายงวดของเมื่อวาน และจะไปเป็นต้นงวดของวันนี้ กด Enter หรือลูกศรขึ้นลงไปหัวถัดไปตามลำดับ 1, 2, 3…
         </Text>
         <Table striped withTableBorder>
           <Table.Thead>
@@ -102,7 +107,7 @@ export function DailyCloseSheet({
                 <Table.Td>{fuel?.nameTh ?? ''}</Table.Td>
                 <Table.Td ta="right">{formatMeter(start)}</Table.Td>
                 <Table.Td>
-                  <TextInput
+                  <EntryInput
                     size="lg"
                     inputMode="decimal"
                     value={meterDrafts[machine.id] ?? ''}
@@ -129,7 +134,7 @@ export function DailyCloseSheet({
           {fuels.map((fuel) => {
             const price = priceForFuel(fuel, date, days, day)
             return (
-              <TextInput
+              <EntryInput
                 key={fuel.id}
                 size="lg"
                 label={fuel.nameTh}
@@ -158,7 +163,7 @@ export function DailyCloseSheet({
           </Text>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
             {tanks.map((sheet) => (
-              <TextInput
+              <EntryInput
                 key={sheet.tank.id}
                 size="lg"
                 label={`ถังที่ ${sheet.tank.tankNo} ${sheet.fuel.nameTh}`}
@@ -211,7 +216,7 @@ export function DailyCloseSheet({
                 {tanks.some((item) => item.startEditable) ? (
                   <Table.Td>
                     {sheet.startEditable ? (
-                      <TextInput
+                      <EntryInput
                         size="lg"
                         inputMode="decimal"
                         value={
@@ -229,7 +234,7 @@ export function DailyCloseSheet({
                 ) : null}
                 <Table.Td>{sheet.testLiters ? formatMeter(sheet.testLiters) : '—'}</Table.Td>
                 <Table.Td>
-                  <TextInput
+                  <EntryInput
                     size="lg"
                     inputMode="decimal"
                     value={stickDrafts[sheet.tank.id] ?? ''}

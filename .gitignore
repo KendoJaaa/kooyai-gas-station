@@ -8,3 +8,4 @@ release
 .idea
 .vscode
 *.local
+resources/company-db.json

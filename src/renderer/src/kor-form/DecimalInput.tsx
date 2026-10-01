@@ -1,16 +1,19 @@
 import { useEffect, useState, type JSX } from 'react'
+import { entryInputProps } from '../entryKeys'
 import { parseMeter } from './numbers'
 
 export function DecimalInput({
   value,
   onCommit,
   className = 'kor-input',
-  ariaLabel
+  ariaLabel,
+  entry = false
 }: {
   value: number | null | undefined
   onCommit: (value: number | null) => void
   className?: string
   ariaLabel?: string
+  entry?: boolean
 }): JSX.Element {
   const [text, setText] = useState(value ? String(value) : '')
 
@@ -24,6 +27,7 @@ export function DecimalInput({
       inputMode="decimal"
       value={text}
       aria-label={ariaLabel}
+      {...(entry ? entryInputProps : {})}
       onChange={(event) => {
         const next = event.target.value
         setText(next)

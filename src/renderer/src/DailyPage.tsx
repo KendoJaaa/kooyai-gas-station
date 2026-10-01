@@ -12,10 +12,11 @@ import {
 } from '../../shared/reports'
 import { unusedNozzleMeters, type DayReadings } from '../../shared/station'
 import { dayFor, withDay, type AppStore } from '../../shared/store'
+import { retentionStart } from '../../shared/retention'
 import { DailyCloseSheet } from './DailyCloseSheet'
 import { DayExtras } from './DayExtras'
 import { useStationStore } from './StationStore'
-import { isoYesterday, savedAtLabel } from './kor-form/dates'
+import { isoToday, isoYesterday, savedAtLabel } from './kor-form/dates'
 import { formatMeter, parseMeter } from './kor-form/numbers'
 import {
   formatIssueSummary,
@@ -319,6 +320,7 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
                 valueFormat="D MMMM BBBB"
                 locale="th"
                 aria-label="วันที่"
+                minDate={dayjs(retentionStart(isoToday())).toDate()}
                 value={dayjs(date).toDate()}
                 onChange={(value) => {
                   const nextDate = toIsoDate(value as Date | string | null)

@@ -20,7 +20,10 @@ export function mergeStores(local: AppStore, remote: AppStore): AppStore {
     else days[date] = newerDay(left, right)
   }
 
-  const useRemoteMeta = stamp(remote.updatedAt) > stamp(local.updatedAt)
+  const remoteReady = remote.setupCompleted === true
+  const localReady = local.setupCompleted === true
+  const useRemoteMeta =
+    (remoteReady && !localReady) || stamp(remote.updatedAt) > stamp(local.updatedAt)
   const base = useRemoteMeta ? remote : local
   const updatedAt =
     stamp(remote.updatedAt) > stamp(local.updatedAt) ? remote.updatedAt : local.updatedAt
