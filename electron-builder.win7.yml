@@ -2,8 +2,8 @@
 # Electron 22.3.27 is the last release that still starts on those versions.
 # Build only through `bun run build:win7`, which sets ELECTRON_MAJOR_VER=22
 # so the bundle targets Chrome 108 and Node 16.17.
-appId: com.kooyai.gasstation
-productName: แบบบันทึกสถานีน้ำมัน
+appId: com.kooyai.gasbook
+productName: Kooyai
 copyright: Copyright © 2026 KendoJaaa
 electronVersion: "22.3.27"
 directories:
@@ -18,12 +18,19 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!electron-builder.win7.yml'
   - '!scripts/*'
+  - '!**/*.map'
+extraResources:
+  - from: resources/company-db.json
+    to: company-db.json
+  - from: resources/apply-update.cmd
+    to: apply-update.cmd
 asarUnpack:
   - resources/**
   - node_modules/mongodb/**
   - node_modules/bson/**
 win:
-  executableName: kooyai-gas-station
+  icon: build/icon.png
+  executableName: kooyai
   artifactName: ${name}-${version}-win7-${arch}.${ext}
   target:
     - target: nsis

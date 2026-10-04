@@ -1,4 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
+
+// contextIsolation blocks automatic capture of errors in this script.
+if (Number(process.versions.electron.split('.')[0] ?? '0') >= 35) {
+  void import('@sentry/electron/renderer').then((Sentry) => {
+    Sentry.init()
+  })
+}
 import { electronAPI } from '@electron-toolkit/preload'
 import type { AppStore } from '../shared/store'
 import type { OpenPathResult, PdfResult, SaveResult, SyncSettings } from '../shared/types'

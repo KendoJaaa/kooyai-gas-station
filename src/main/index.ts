@@ -1,3 +1,4 @@
+import './sentry'
 import { app, shell, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile, mkdir, stat } from 'fs/promises'
@@ -9,6 +10,7 @@ import type { PdfResult, SaveResult, SyncSettings } from '../shared/types'
 import { pullRemoteStore, pushRemoteStore } from './mongo'
 import { companyDatabaseUri } from './companyDb'
 import { loadSyncSettings, saveSyncSettings } from './syncSettings'
+import { applyPendingUpdate, installUpdateHooks } from './updates'
 
 const STORE_FILE = 'station.json'
 
@@ -51,6 +53,7 @@ function createWindow(): BrowserWindow {
     minHeight: 700,
     show: false,
     autoHideMenuBar: true,
+    icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -249,8 +252,12 @@ async function exportPdf(kind: 'daily' | 'tax' = 'daily', month = ''): Promise<P
   }
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.kooyai.gasstation')
+void applyPendingUpdate(true).then((updating) => {
+  if (updating) return
+  installUpdateHooks(companyDatabaseUri)
+
+  app.whenReady().then(() => {
+  electronApp.setAppUserModelId('com.kooyai.gasbook')
   Menu.setApplicationMenu(null)
 
   app.on('browser-window-created', (_, window) => {
@@ -336,8 +343,9 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
 })

@@ -1,5 +1,5 @@
-appId: com.kooyai.gasstation
-productName: แบบบันทึกสถานีน้ำมัน
+appId: com.kooyai.gasbook
+productName: Kooyai
 copyright: Copyright © 2026 KendoJaaa
 directories:
   buildResources: build
@@ -11,12 +11,19 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml,bun.lock}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/*.map'
+extraResources:
+  - from: resources/company-db.json
+    to: company-db.json
+  - from: resources/apply-update.cmd
+    to: apply-update.cmd
 asarUnpack:
   - resources/**
   - node_modules/mongodb/**
   - node_modules/bson/**
 win:
-  executableName: kooyai-gas-station
+  icon: build/icon.png
+  executableName: kooyai
   target:
     - nsis
     - zip

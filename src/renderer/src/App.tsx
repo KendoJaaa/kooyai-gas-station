@@ -6,6 +6,7 @@ import { PrintView } from './PrintView'
 import { SalesTaxPrint } from './SalesTaxPrint'
 import { SettingsPage } from './SettingsPage'
 import { SetupPage } from './SetupPage'
+import { AppVersion } from './AppVersion'
 import { StationStoreProvider, useStationStore } from './StationStore'
 
 type AppPage = 'daily' | 'settings' | 'setup'
@@ -41,10 +42,12 @@ function AppContent(): JSX.Element {
           style={{
             display: 'flex',
             alignItems: 'center',
+            gap: 12,
             fontWeight: 700
           }}
         >
-          <span>แบบบันทึกสถานีน้ำมัน</span>
+          <span>ปั้มน้ำมัน</span>
+          <AppVersion />
         </AppShell.Header>
         <AppShell.Main>
           <SetupPage
@@ -66,6 +69,7 @@ function AppContent(): JSX.Element {
               กลับ
             </Button>
             <span style={{ fontWeight: 700 }}>ตั้งค่าสถานี</span>
+            <AppVersion />
           </Group>
         </AppShell.Header>
         <AppShell.Main>

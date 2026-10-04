@@ -16,6 +16,7 @@ import { retentionStart } from '../../shared/retention'
 import { DailyCloseSheet } from './DailyCloseSheet'
 import { DayExtras } from './DayExtras'
 import { useStationStore } from './StationStore'
+import { AppVersion } from './AppVersion'
 import { isoToday, isoYesterday, savedAtLabel } from './kor-form/dates'
 import { formatMeter, parseMeter } from './kor-form/numbers'
 import {
@@ -390,8 +391,9 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
         <Group h="100%" justify="space-between" wrap="nowrap" gap="md" align="center">
           <Group wrap="nowrap" gap="md" align="center">
             <Text fw={700} style={{ whiteSpace: 'nowrap' }}>
-              แบบบันทึกสถานีน้ำมัน
+              ปั้มน้ำมัน
             </Text>
+            <AppVersion />
             <Group wrap="nowrap" gap="xs" align="center">
               <Text size="sm" style={{ whiteSpace: 'nowrap' }}>
                 วันที่ (เมื่อวาน)
