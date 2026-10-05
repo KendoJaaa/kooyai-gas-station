@@ -2,10 +2,13 @@ import { createHash } from 'node:crypto'
 import { createReadStream, readFileSync } from 'node:fs'
 import { MongoClient, GridFSBucket } from 'mongodb'
 
-const channel = process.argv[2]
+const CHANNELS = ['win', 'win7', 'mac']
+const requested = process.argv[2] ?? 'all'
 const asarPath = process.argv[3]
-if ((channel !== 'win' && channel !== 'win7' && channel !== 'mac') || !asarPath) {
-  console.error('usage: node scripts/publish-update.mjs <win|win7|mac> <app.asar>')
+const channels = requested === 'all' ? CHANNELS : [requested]
+
+if (!channels.every((channel) => CHANNELS.includes(channel)) || !asarPath) {
+  console.error('usage: node scripts/publish-update.mjs [all|win|win7|mac] <app.asar>')
   process.exit(1)
 }
 
@@ -29,27 +32,30 @@ try {
   const db = mongo.db('kooyai')
   const bucket = new GridFSBucket(db, { bucketName: 'app_updates' })
   const releases = db.collection('app_releases')
-  const previous = await releases.findOne({ _id: channel })
-  const upload = bucket.openUploadStream(`${channel}-${version}.asar`)
-  await new Promise((resolve, reject) => {
-    createReadStream(asarPath).pipe(upload).on('error', reject).on('finish', resolve)
-  })
-  await releases.updateOne(
-    { _id: channel },
-    {
-      $set: {
-        version,
-        sha256: digest,
-        fileId: upload.id,
-        publishedAt: new Date()
-      }
-    },
-    { upsert: true }
-  )
-  if (previous?.fileId && String(previous.fileId) !== String(upload.id)) {
-    await bucket.delete(previous.fileId).catch(() => undefined)
+
+  for (const channel of channels) {
+    const previous = await releases.findOne({ _id: channel })
+    const upload = bucket.openUploadStream(`${channel}-${version}.asar`)
+    await new Promise((resolve, reject) => {
+      createReadStream(asarPath).pipe(upload).on('error', reject).on('finish', resolve)
+    })
+    await releases.updateOne(
+      { _id: channel },
+      {
+        $set: {
+          version,
+          sha256: digest,
+          fileId: upload.id,
+          publishedAt: new Date()
+        }
+      },
+      { upsert: true }
+    )
+    if (previous?.fileId && String(previous.fileId) !== String(upload.id)) {
+      await bucket.delete(previous.fileId).catch(() => undefined)
+    }
+    console.log(`published ${channel} ${version} ${digest.slice(0, 12)}`)
   }
-  console.log(`published ${channel} ${version} ${digest.slice(0, 12)}`)
 } finally {
   await mongo.close()
 }

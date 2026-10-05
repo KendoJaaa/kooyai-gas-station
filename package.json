@@ -16,7 +16,8 @@
     "postinstall": "node node_modules/electron-builder/cli.js install-app-deps",
     "build:win": "bun run build && electron-builder --win nsis",
     "build:win7": "bun scripts/build-win7.mjs",
-    "build:mac": "bun run build && node node_modules/electron-builder/cli.js --mac dmg"
+    "build:mac": "bun run build && node node_modules/electron-builder/cli.js --mac dmg",
+    "publish:update": "node scripts/publish-update.mjs all"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
