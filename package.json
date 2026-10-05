@@ -1,6 +1,6 @@
 {
   "name": "kooyai-gas-station",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "แบบบันทึกสถานีน้ำมัน ออฟไลน์ สำหรับ Windows — บันทึกในเครื่อง ส่งออก PDF",
   "main": "./out/main/index.js",
   "author": "KendoJaaa",

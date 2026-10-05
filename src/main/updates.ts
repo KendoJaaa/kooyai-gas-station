@@ -9,7 +9,7 @@ import { app } from 'electron'
 const DB_NAME = 'kooyai'
 const RELEASES = 'app_releases'
 
-type UpdateChannel = 'win' | 'win7'
+type UpdateChannel = 'win' | 'win7' | 'mac'
 
 type ReleaseDoc = {
   _id: UpdateChannel
@@ -31,8 +31,13 @@ function markerPath(): string {
 }
 
 function updateChannel(): UpdateChannel {
+  if (process.platform === 'darwin') return 'mac'
   const major = Number(process.versions.electron.split('.')[0])
   return major <= 22 ? 'win7' : 'win'
+}
+
+function supportsAutoUpdate(): boolean {
+  return app.isPackaged && (process.platform === 'win32' || process.platform === 'darwin')
 }
 
 export function compareVersions(left: string, right: string): number {
@@ -60,23 +65,30 @@ async function readMarker(): Promise<{ version: string; sha256: string } | null>
 }
 
 function spawnHelper(relaunch: boolean): void {
-  const script = join(process.resourcesPath, 'apply-update.cmd')
-  const child = spawn(
-    script,
-    [
-      pendingAsar(),
-      join(process.resourcesPath, 'app.asar'),
-      markerPath(),
-      relaunch ? '1' : '0',
-      process.execPath
-    ],
-    { detached: true, stdio: 'ignore', windowsHide: true, shell: true }
-  )
+  const args = [
+    pendingAsar(),
+    join(process.resourcesPath, 'app.asar'),
+    markerPath(),
+    relaunch ? '1' : '0',
+    process.execPath
+  ]
+  const child =
+    process.platform === 'darwin'
+      ? spawn('/bin/bash', [join(process.resourcesPath, 'apply-update.sh'), ...args], {
+          detached: true,
+          stdio: 'ignore'
+        })
+      : spawn(join(process.resourcesPath, 'apply-update.cmd'), args, {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+          shell: true
+        })
   child.unref()
 }
 
 export async function pendingUpdateReady(): Promise<boolean> {
-  if (!app.isPackaged || process.platform !== 'win32') return false
+  if (!supportsAutoUpdate()) return false
   const marker = await readMarker()
   if (!marker) return false
   if (compareVersions(marker.version, app.getVersion()) <= 0) {
@@ -147,7 +159,7 @@ async function downloadRelease(uri: string, release: ReleaseDoc): Promise<void> 
 }
 
 export function installUpdateHooks(companyDatabaseUri: () => Promise<string>): void {
-  if (!app.isPackaged || process.platform !== 'win32') return
+  if (!supportsAutoUpdate()) return
 
   let applying = false
   app.on('before-quit', (event) => {

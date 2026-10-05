@@ -4,8 +4,8 @@ import { MongoClient, GridFSBucket } from 'mongodb'
 
 const channel = process.argv[2]
 const asarPath = process.argv[3]
-if ((channel !== 'win' && channel !== 'win7') || !asarPath) {
-  console.error('usage: node scripts/publish-update.mjs <win|win7> <app.asar>')
+if ((channel !== 'win' && channel !== 'win7' && channel !== 'mac') || !asarPath) {
+  console.error('usage: node scripts/publish-update.mjs <win|win7|mac> <app.asar>')
   process.exit(1)
 }
 

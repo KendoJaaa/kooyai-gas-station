@@ -17,6 +17,8 @@ extraResources:
     to: company-db.json
   - from: resources/apply-update.cmd
     to: apply-update.cmd
+  - from: resources/apply-update.sh
+    to: apply-update.sh
 asarUnpack:
   - resources/**
   - node_modules/mongodb/**
