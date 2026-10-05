@@ -391,7 +391,7 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
         <Group h="100%" justify="space-between" wrap="nowrap" gap="md" align="center">
           <Group wrap="nowrap" gap="md" align="center">
             <Text fw={700} style={{ whiteSpace: 'nowrap' }}>
-              ปั้มน้ำมัน
+              บันทึกปั้ม
             </Text>
             <AppVersion />
             <Group wrap="nowrap" gap="xs" align="center">

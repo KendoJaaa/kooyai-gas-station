@@ -6,11 +6,11 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { emptyStore, isAppStore, migrateStore, type AppStore } from '../shared/store'
 import { mergeStores, touchStore } from '../shared/sync'
 import { pruneOldDays } from '../shared/retention'
-import type { PdfResult, SaveResult, SyncSettings } from '../shared/types'
+import { applyPendingUpdate, checkForUpdate, downloadAvailableUpdate, getUpdateStatus, installUpdateHooks } from './updates'
+import type { AppUpdateStatus, PdfResult, SaveResult, SyncSettings, UpdateInstallResult } from '../shared/types'
 import { pullRemoteStore, pushRemoteStore } from './mongo'
 import { companyDatabaseUri } from './companyDb'
 import { loadSyncSettings, saveSyncSettings } from './syncSettings'
-import { applyPendingUpdate, installUpdateHooks } from './updates'
 
 const STORE_FILE = 'station.json'
 
@@ -260,7 +260,7 @@ void applyPendingUpdate(true).then((updating) => {
   installUpdateHooks(companyDatabaseUri)
 
   app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.kooyai.gasbook')
+  electronApp.setAppUserModelId('com.kooyai.banthukpum')
   Menu.setApplicationMenu(null)
 
   app.on('browser-window-created', (_, window) => {
@@ -324,6 +324,18 @@ void applyPendingUpdate(true).then((updating) => {
       return { ok: false, message: 'เดือนไม่ถูกต้อง' }
     }
     return exportPdf('tax', month)
+  })
+
+  ipcMain.handle('update:status', async (): Promise<AppUpdateStatus> => {
+    return getUpdateStatus()
+  })
+
+  ipcMain.handle('update:check', async (): Promise<AppUpdateStatus> => {
+    return checkForUpdate(companyDatabaseUri)
+  })
+
+  ipcMain.handle('update:download', async (): Promise<UpdateInstallResult> => {
+    return downloadAvailableUpdate(companyDatabaseUri)
   })
 
   ipcMain.handle('file:open', async (_event, filePath: unknown): Promise<{ ok: true } | { ok: false; message: string }> => {

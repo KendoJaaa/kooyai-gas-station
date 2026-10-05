@@ -14,3 +14,11 @@ export type PdfResult =
   | { ok: true; filePath: string }
   | { ok: false; canceled: true }
   | { ok: false; message: string }
+
+export type AppUpdateStatus = {
+  current: string
+  available?: string
+  ready: boolean
+}
+
+export type UpdateInstallResult = { ok: true } | { ok: false; message: string }

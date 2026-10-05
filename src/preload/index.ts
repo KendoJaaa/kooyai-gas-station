@@ -8,7 +8,14 @@ if (Number(process.versions.electron.split('.')[0] ?? '0') >= 35) {
 }
 import { electronAPI } from '@electron-toolkit/preload'
 import type { AppStore } from '../shared/store'
-import type { OpenPathResult, PdfResult, SaveResult, SyncSettings } from '../shared/types'
+import type {
+  AppUpdateStatus,
+  OpenPathResult,
+  PdfResult,
+  SaveResult,
+  SyncSettings,
+  UpdateInstallResult
+} from '../shared/types'
 
 const api = {
   loadStore: (): Promise<AppStore> => ipcRenderer.invoke('store:load'),
@@ -17,6 +24,9 @@ const api = {
   exportTaxPdf: (month: string): Promise<PdfResult> => ipcRenderer.invoke('pdf:exportTax', month),
   getSyncSettings: (): Promise<SyncSettings> => ipcRenderer.invoke('sync:getSettings'),
   syncNow: (): Promise<SaveResult> => ipcRenderer.invoke('sync:now'),
+  getUpdateStatus: (): Promise<AppUpdateStatus> => ipcRenderer.invoke('update:status'),
+  checkForUpdate: (): Promise<AppUpdateStatus> => ipcRenderer.invoke('update:check'),
+  downloadUpdate: (): Promise<UpdateInstallResult> => ipcRenderer.invoke('update:download'),
   notifyPrintReady: (): void => {
     ipcRenderer.send('print:ready')
   },

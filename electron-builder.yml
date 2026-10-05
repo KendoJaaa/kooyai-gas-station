@@ -1,5 +1,5 @@
-appId: com.kooyai.gasbook
-productName: Kooyai
+appId: com.kooyai.banthukpum
+productName: บันทึกปั้ม
 copyright: Copyright © 2026 KendoJaaa
 directories:
   buildResources: build
@@ -31,11 +31,11 @@ mac:
   artifactName: ปั้ม-Mac.${ext}
   identity: null
 dmg:
-  title: Kooyai
+  title: บันทึกปั้ม
   artifactName: ปั้ม-Mac.${ext}
 win:
   icon: build/icon.png
-  executableName: kooyai
+  executableName: banthukpum
   target:
     - nsis
     - zip

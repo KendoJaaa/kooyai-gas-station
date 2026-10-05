@@ -5,6 +5,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'fs/promises'
 import { GridFSBucket, MongoClient, ObjectId } from 'mongodb'
 import { dirname, join } from 'path'
 import { app } from 'electron'
+import type { AppUpdateStatus, UpdateInstallResult } from '../shared/types'
 
 const DB_NAME = 'kooyai'
 const RELEASES = 'app_releases'
@@ -180,30 +181,81 @@ export function installUpdateHooks(companyDatabaseUri: () => Promise<string>): v
   })
 }
 
-async function checkForUpdate(companyDatabaseUri: () => Promise<string>): Promise<void> {
+let knownAvailable: string | undefined
+
+export async function getUpdateStatus(): Promise<AppUpdateStatus> {
+  const current = app.getVersion()
+  const ready = await pendingUpdateReady()
+  const marker = await readMarker()
+  let available = knownAvailable
+  if ((!available || compareVersions(available, current) <= 0) && marker) {
+    available = compareVersions(marker.version, current) > 0 ? marker.version : undefined
+  }
+  if (available && compareVersions(available, current) <= 0) available = undefined
+  return { current, available, ready: Boolean(available) && ready }
+}
+
+async function fetchLatestRelease(uri: string): Promise<ReleaseDoc | null> {
+  const mongo = new MongoClient(uri, {
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000
+  })
+  try {
+    await mongo.connect()
+    return await mongo
+      .db(DB_NAME)
+      .collection<ReleaseDoc>(RELEASES)
+      .findOne({ _id: updateChannel() })
+  } finally {
+    await mongo.close()
+  }
+}
+
+export async function checkForUpdate(
+  companyDatabaseUri: () => Promise<string>
+): Promise<AppUpdateStatus> {
   try {
     const uri = await companyDatabaseUri()
-    if (!uri) return
-    const mongo = new MongoClient(uri, {
-      serverSelectionTimeoutMS: 8000,
-      connectTimeoutMS: 8000
-    })
-    let release: ReleaseDoc | null = null
-    try {
-      await mongo.connect()
-      release = await mongo
-        .db(DB_NAME)
-        .collection<ReleaseDoc>(RELEASES)
-        .findOne({ _id: updateChannel() })
-    } finally {
-      await mongo.close()
+    if (!uri) return getUpdateStatus()
+    const release = await fetchLatestRelease(uri)
+    if (!release?.version || !release.sha256 || !release.fileId) return getUpdateStatus()
+    if (compareVersions(release.version, app.getVersion()) <= 0) {
+      knownAvailable = undefined
+      return getUpdateStatus()
     }
-    if (!release?.version || !release.sha256 || !release.fileId) return
-    if (compareVersions(release.version, app.getVersion()) <= 0) return
-    const marker = await readMarker()
-    if (marker?.version === release.version && marker.sha256 === release.sha256) return
-    await downloadRelease(uri, release)
+    knownAvailable = release.version
   } catch {
-    // Offline or a bad download stays on the program already installed.
+    // Offline stays on the program already installed.
+  }
+  return getUpdateStatus()
+}
+
+export async function downloadAvailableUpdate(
+  companyDatabaseUri: () => Promise<string>
+): Promise<UpdateInstallResult> {
+  if (!supportsAutoUpdate()) {
+    return { ok: false, message: 'รุ่นนี้ยังอัปเดตจากอินเทอร์เน็ตไม่ได้' }
+  }
+  try {
+    const uri = await companyDatabaseUri()
+    if (!uri) return { ok: false, message: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
+    const release = await fetchLatestRelease(uri)
+    if (!release?.version || !release.sha256 || !release.fileId) {
+      return { ok: false, message: 'ยังไม่มีรุ่นใหม่' }
+    }
+    if (compareVersions(release.version, app.getVersion()) <= 0) {
+      return { ok: false, message: 'ยังไม่มีรุ่นใหม่' }
+    }
+    knownAvailable = release.version
+    const marker = await readMarker()
+    if (!(marker?.version === release.version && marker.sha256 === release.sha256)) {
+      await downloadRelease(uri, release)
+    }
+    const status = await getUpdateStatus()
+    if (!status.ready) return { ok: false, message: 'ดาวน์โหลดรุ่นใหม่ไม่สำเร็จ ลองอีกครั้งเมื่อเน็ตดี' }
+    return { ok: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'ดาวน์โหลดรุ่นใหม่ไม่สำเร็จ'
+    return { ok: false, message }
   }
 }

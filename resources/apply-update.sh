@@ -4,8 +4,9 @@ TARGET="$2"
 MARKER="$3"
 RELAUNCH="$4"
 EXE="$5"
+NAME="$(basename "$EXE")"
 sleep 2
-while pgrep -x Kooyai >/dev/null; do
+while pgrep -x "$NAME" >/dev/null; do
   sleep 1
 done
 if cp "$PENDING" "$TARGET"; then

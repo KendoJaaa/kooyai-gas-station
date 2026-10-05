@@ -2,8 +2,8 @@
 # Electron 22.3.27 is the last release that still starts on those versions.
 # Build only through `bun run build:win7`, which sets ELECTRON_MAJOR_VER=22
 # so the bundle targets Chrome 108 and Node 16.17.
-appId: com.kooyai.gasbook
-productName: Kooyai
+appId: com.kooyai.banthukpum
+productName: บันทึกปั้ม
 copyright: Copyright © 2026 KendoJaaa
 electronVersion: "22.3.27"
 directories:
@@ -32,7 +32,7 @@ asarUnpack:
   - node_modules/bson/**
 win:
   icon: build/icon.png
-  executableName: kooyai
+  executableName: banthukpum
   artifactName: ปั้ม-Windows7-${arch}.${ext}
   target:
     - target: nsis

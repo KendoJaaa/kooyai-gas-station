@@ -3,11 +3,13 @@
 CRCCheck off
 
 ; Windows identifies a program by its id, not the shortcut name.
-; Delete the two earlier ids before their broken uninstallers can start.
+; Delete the earlier ids before their broken uninstallers can start.
 !macro customCheckAppRunning
   nsExec::Exec `"$SYSDIR\taskkill.exe" /F /T /IM "kooyai-gas-station.exe"`
   Pop $R0
   nsExec::Exec `"$SYSDIR\taskkill.exe" /F /T /IM "kooyai.exe"`
+  Pop $R0
+  nsExec::Exec `"$SYSDIR\taskkill.exe" /F /T /IM "banthukpum.exe"`
   Pop $R0
 
   ; com.kooyai.gasstation

@@ -46,7 +46,7 @@ function AppContent(): JSX.Element {
             fontWeight: 700
           }}
         >
-          <span>ปั้มน้ำมัน</span>
+          <span>บันทึกปั้ม</span>
           <AppVersion />
         </AppShell.Header>
         <AppShell.Main>
