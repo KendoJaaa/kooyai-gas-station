@@ -1,4 +1,4 @@
-import './sentry'
+import { reportSyncFailure, reportSyncSkipped } from './sentry'
 import { app, shell, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile, mkdir, stat } from 'fs/promises'
@@ -134,6 +134,7 @@ async function loadStore(): Promise<AppStore> {
     })
     return onThisPc
   } catch (error) {
+    reportSyncFailure(error, { operation: 'load' })
     await saveSyncSettings({
       ...settings,
       lastSyncError: syncErrorMessage(error)
@@ -148,6 +149,7 @@ async function saveStore(store: AppStore): Promise<SaveResult> {
   const uri = await companyDatabaseUri()
   const settings = await loadSyncSettings()
   if (!uri) {
+    reportSyncSkipped('save-no-uri', 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท')
     await writeLocalStore(touchStore(pruneOldDays(store, todayIso())))
     return { ok: true, synced: false, syncMessage: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
   }
@@ -160,6 +162,7 @@ async function saveStore(store: AppStore): Promise<SaveResult> {
     })
     return { ok: true, synced: true }
   } catch (error) {
+    reportSyncFailure(error, { operation: 'save' })
     await writeLocalStore(touchStore(pruneOldDays(store, todayIso())))
     const message = syncErrorMessage(error)
     await saveSyncSettings({ ...settings, lastSyncError: message })
@@ -294,6 +297,7 @@ void applyPendingUpdate(true).then((updating) => {
     try {
       const uri = await companyDatabaseUri()
       if (!uri) {
+        reportSyncSkipped('sync-no-uri', 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท')
         return { ok: false, message: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
       }
       const local = await loadLocalStore()
@@ -306,6 +310,7 @@ void applyPendingUpdate(true).then((updating) => {
       })
       return { ok: true, synced: true }
     } catch (error) {
+      reportSyncFailure(error, { operation: 'syncNow' })
       return { ok: false, message: syncErrorMessage(error) }
     }
   })

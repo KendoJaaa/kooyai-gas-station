@@ -31,7 +31,7 @@ asarUnpack:
 win:
   icon: build/icon.png
   executableName: kooyai
-  artifactName: ${name}-${version}-win7-${arch}.${ext}
+  artifactName: ปั้ม-Windows7-${arch}.${ext}
   target:
     - target: nsis
       arch:
@@ -45,7 +45,7 @@ win:
         - ia32
 nsis:
   include: build/installer.nsh
-  artifactName: ${name}-${version}-win7-${arch}-setup.${ext}
+  artifactName: ปั้ม-Windows7-${arch}.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   oneClick: false

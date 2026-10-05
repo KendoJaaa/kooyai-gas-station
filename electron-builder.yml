@@ -21,6 +21,16 @@ asarUnpack:
   - resources/**
   - node_modules/mongodb/**
   - node_modules/bson/**
+mac:
+  icon: build/icon.png
+  category: public.app-category.business
+  target:
+    - dmg
+  artifactName: ปั้ม-Mac.${ext}
+  identity: null
+dmg:
+  title: Kooyai
+  artifactName: ปั้ม-Mac.${ext}
 win:
   icon: build/icon.png
   executableName: kooyai
@@ -29,7 +39,7 @@ win:
     - zip
 nsis:
   include: build/installer.nsh
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ปั้ม.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   oneClick: false
