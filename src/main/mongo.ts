@@ -1,7 +1,8 @@
-import { MongoClient, type Collection } from 'mongodb'
+import { MongoClient, type Collection, type Db } from 'mongodb'
 import { isAppStore, migrateStore, type AppStore } from '../shared/store'
+import atlas from './atlas.json'
 
-const DB_NAME = 'kooyai'
+const DB_NAME = atlas.database
 const COLLECTION = 'stations'
 const DOC_ID = 'kooyai-station'
 
@@ -10,24 +11,40 @@ type StationDoc = {
   store: AppStore
 }
 
-function client(uri: string): MongoClient {
-  return new MongoClient(uri, {
+export function directMongoUri(uri: string): string {
+  const trimmed = uri.trim()
+  if (!trimmed.startsWith('mongodb+srv://')) return trimmed
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return trimmed
+  }
+  const database = parsed.pathname.replace(/^\//, '') || DB_NAME
+  const user = encodeURIComponent(decodeURIComponent(parsed.username))
+  const password = encodeURIComponent(decodeURIComponent(parsed.password))
+  return `mongodb://${user}:${password}@${atlas.hosts.join(',')}/${database}?tls=true&replicaSet=${atlas.replicaSet}&authSource=admin&retryWrites=true&w=majority`
+}
+
+// The only place a Mongo client is opened. Callers cannot use the SRV address.
+export async function withDatabase<T>(uri: string, work: (db: Db) => Promise<T>): Promise<T> {
+  const mongo = new MongoClient(directMongoUri(uri), {
     serverSelectionTimeoutMS: 8000,
     connectTimeoutMS: 8000
   })
+  try {
+    await mongo.connect()
+    return await work(mongo.db(DB_NAME))
+  } finally {
+    await mongo.close()
+  }
 }
 
 async function withCollection<T>(
   uri: string,
   work: (collection: Collection<StationDoc>) => Promise<T>
 ): Promise<T> {
-  const mongo = client(uri)
-  try {
-    await mongo.connect()
-    return await work(mongo.db(DB_NAME).collection<StationDoc>(COLLECTION))
-  } finally {
-    await mongo.close()
-  }
+  return withDatabase(uri, (db) => work(db.collection<StationDoc>(COLLECTION)))
 }
 
 export function isMongoUri(value: string): boolean {

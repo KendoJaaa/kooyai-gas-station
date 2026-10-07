@@ -2,12 +2,12 @@ import { spawn } from 'child_process'
 import { createHash } from 'crypto'
 import { createReadStream } from 'fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'fs/promises'
-import { GridFSBucket, MongoClient, ObjectId } from 'mongodb'
+import { GridFSBucket, ObjectId } from 'mongodb'
+import { withDatabase } from './mongo'
 import { dirname, join } from 'path'
 import { app } from 'electron'
 import type { AppUpdateStatus, UpdateInstallResult } from '../shared/types'
 
-const DB_NAME = 'kooyai'
 const RELEASES = 'app_releases'
 
 type UpdateChannel = 'win' | 'win7' | 'mac'
@@ -123,27 +123,17 @@ async function downloadRelease(uri: string, release: ReleaseDoc): Promise<void> 
   const dir = updateDir()
   await mkdir(dir, { recursive: true })
   const part = join(dir, 'app.asar.part')
-  const mongo = new MongoClient(uri, {
-    serverSelectionTimeoutMS: 8000,
-    connectTimeoutMS: 8000
-  })
-  try {
-    await mongo.connect()
-    const bucket = new GridFSBucket(mongo.db(DB_NAME), { bucketName: 'app_updates' })
-    await new Promise<void>((resolve, reject) => {
+  const file = await withDatabase(uri, async (db) => {
+    const bucket = new GridFSBucket(db, { bucketName: 'app_updates' })
+    return await new Promise<Buffer>((resolve, reject) => {
       const stream = bucket.openDownloadStream(release.fileId)
       const chunks: Buffer[] = []
       stream.on('data', (chunk: Buffer) => chunks.push(chunk))
       stream.on('error', reject)
-      stream.on('end', () => {
-        writeFile(part, Buffer.concat(chunks))
-          .then(() => resolve())
-          .catch(reject)
-      })
+      stream.on('end', () => resolve(Buffer.concat(chunks)))
     })
-  } finally {
-    await mongo.close()
-  }
+  })
+  await writeFile(part, file)
 
   const digest = await sha256(part)
   if (digest !== release.sha256) {
@@ -196,19 +186,9 @@ export async function getUpdateStatus(): Promise<AppUpdateStatus> {
 }
 
 async function fetchLatestRelease(uri: string): Promise<ReleaseDoc | null> {
-  const mongo = new MongoClient(uri, {
-    serverSelectionTimeoutMS: 8000,
-    connectTimeoutMS: 8000
-  })
-  try {
-    await mongo.connect()
-    return await mongo
-      .db(DB_NAME)
-      .collection<ReleaseDoc>(RELEASES)
-      .findOne({ _id: updateChannel() })
-  } finally {
-    await mongo.close()
-  }
+  return withDatabase(uri, (db) =>
+    db.collection<ReleaseDoc>(RELEASES).findOne({ _id: updateChannel() })
+  )
 }
 
 export async function checkForUpdate(

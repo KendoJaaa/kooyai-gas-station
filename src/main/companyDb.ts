@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { app } from 'electron'
-import { isMongoUri } from './mongo'
+import { directMongoUri, isMongoUri } from './mongo'
 
 type CompanyDbFile = {
   mongodbUri?: unknown
@@ -25,10 +25,10 @@ async function readUriFile(path: string): Promise<string> {
 // A per-machine URI is intentionally not used.
 export async function companyDatabaseUri(): Promise<string> {
   const fromEnv = process.env.KOOYAI_MONGODB_URI?.trim() ?? ''
-  if (isMongoUri(fromEnv)) return fromEnv
+  if (isMongoUri(fromEnv)) return directMongoUri(fromEnv)
 
   const packaged = await readUriFile(join(process.resourcesPath, 'company-db.json'))
-  if (packaged) return packaged
+  if (packaged) return directMongoUri(packaged)
 
-  return readUriFile(join(app.getAppPath(), 'resources', 'company-db.json'))
+  return directMongoUri(await readUriFile(join(app.getAppPath(), 'resources', 'company-db.json')))
 }

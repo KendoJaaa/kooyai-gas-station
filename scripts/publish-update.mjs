@@ -13,7 +13,18 @@ if (!channels.every((channel) => CHANNELS.includes(channel)) || !asarPath) {
 }
 
 const version = JSON.parse(readFileSync('package.json', 'utf8')).version
-const uri = JSON.parse(readFileSync('resources/company-db.json', 'utf8')).mongodbUri
+const atlas = JSON.parse(readFileSync(new URL('../src/main/atlas.json', import.meta.url), 'utf8'))
+
+function directMongoUri(uri) {
+  if (!uri.startsWith('mongodb+srv://')) return uri
+  const parsed = new URL(uri)
+  const database = parsed.pathname.replace(/^\//, '') || atlas.database
+  const user = encodeURIComponent(decodeURIComponent(parsed.username))
+  const password = encodeURIComponent(decodeURIComponent(parsed.password))
+  return `mongodb://${user}:${password}@${atlas.hosts.join(',')}/${database}?tls=true&replicaSet=${atlas.replicaSet}&authSource=admin&retryWrites=true&w=majority`
+}
+
+const uri = directMongoUri(JSON.parse(readFileSync('resources/company-db.json', 'utf8')).mongodbUri)
 
 function sha256(path) {
   return new Promise((resolve, reject) => {
@@ -55,6 +66,15 @@ try {
       await bucket.delete(previous.fileId).catch(() => undefined)
     }
     console.log(`published ${channel} ${version} ${digest.slice(0, 12)}`)
+  }
+
+  const current = await releases.find({}).toArray()
+  const keep = new Set(current.map((release) => String(release.fileId)))
+  const stored = await db.collection('app_updates.files').find({}, { projection: { _id: 1, filename: 1 } }).toArray()
+  for (const file of stored) {
+    if (keep.has(String(file._id))) continue
+    await bucket.delete(file._id).catch(() => undefined)
+    console.log(`removed ${file.filename}`)
   }
 } finally {
   await mongo.close()
