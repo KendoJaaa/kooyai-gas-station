@@ -3,13 +3,20 @@ import { Center, Loader, Text } from '@mantine/core'
 import dayjs from 'dayjs'
 import { buildSalesTaxReport, type SalesTaxLine } from '../../shared/salesTax'
 import { emptyStore, isAppStore, migrateStore, type AppStore } from '../../shared/store'
+import { isSalesTaxPeriod, type SalesTaxPeriod } from '../../shared/taxPeriod'
 import { isoToday } from './kor-form/dates'
 import { formatBaht } from './kor-form/numbers'
 import './sales-tax.css'
+import { usePrintReady } from './usePrintReady'
 
-function monthFromLocation(): string {
-  const month = new URLSearchParams(window.location.search).get('month') ?? ''
-  return /^\d{4}-\d{2}$/.test(month) ? month : dayjs().format('YYYY-MM')
+function periodFromLocation(): SalesTaxPeriod | null {
+  const params = new URLSearchParams(window.location.search)
+  const period = {
+    month: params.get('month'),
+    startDate: params.get('startDate'),
+    endDate: params.get('endDate')
+  }
+  return isSalesTaxPeriod(period, isoToday()) ? period : null
 }
 
 function amountText(value: number): string {
@@ -20,10 +27,15 @@ function amountText(value: number): string {
 export function SalesTaxPrint(): JSX.Element {
   const [store, setStore] = useState<AppStore | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const month = monthFromLocation()
+  const [period] = useState(periodFromLocation)
 
   useEffect(() => {
     let cancelled = false
+
+    if (!period) {
+      setError('ช่วงวันที่รายงานภาษีขายไม่ถูกต้อง')
+      return
+    }
 
     if (!window.api) {
       setStore(emptyStore(isoToday()))
@@ -39,16 +51,18 @@ export function SalesTaxPrint(): JSX.Element {
       .catch((err: unknown) => {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
-        setStore(emptyStore(isoToday()))
-      })
-      .finally(() => {
-        window.setTimeout(() => window.api?.notifyPrintReady(), 50)
       })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [period])
+
+  usePrintReady(Boolean(store), error)
+
+  if (error) return <Text c="red">{error}</Text>
+
+  if (!period) return <Text c="red">ช่วงวันที่รายงานภาษีขายไม่ถูกต้อง</Text>
 
   if (!store) {
     return (
@@ -58,10 +72,9 @@ export function SalesTaxPrint(): JSX.Element {
     )
   }
 
-  const report = buildSalesTaxReport(store.config, store.days, month, isoToday())
+  const report = buildSalesTaxReport(store.config, store.days, period, isoToday())
   const identity = store.identity
   const headquarters = identity.branch.trim() === '' || identity.branch.includes('สำนักงานใหญ่')
-  const monthLabel = dayjs(`${month}-01`).format('MMMM BBBB')
   const taxDigits = identity.taxId.replace(/\D/g, '').slice(0, 13).split('')
 
   return (
@@ -73,7 +86,9 @@ export function SalesTaxPrint(): JSX.Element {
       ) : null}
       <div className="sales-tax-head">
         <h1 className="sales-tax-title">รายงานภาษีขาย</h1>
-        <div className="sales-tax-month">เดือนภาษี {monthLabel}</div>
+        <div className="sales-tax-range">
+          วันที่ {dayjs(period.startDate).format('D MMMM BBBB')} ถึง {dayjs(period.endDate).format('D MMMM BBBB')}
+        </div>
       </div>
       <div>ชื่อผู้ประกอบการ {identity.operatorName}</div>
       <div className="sales-tax-id">

@@ -36,9 +36,10 @@
   margin-bottom: 8px;
 }
 
-.sales-tax-month {
+.sales-tax-range {
   font-size: 13px;
   font-weight: 600;
+  text-align: right;
 }
 
 .sales-tax-id {
@@ -128,6 +129,10 @@
 }
 
 @media print {
+  body:has(.sales-tax-sheet) {
+    page: sales-tax;
+  }
+
   .sales-tax-sheet {
     width: auto;
     padding: 0;

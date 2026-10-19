@@ -15,9 +15,9 @@ function run(args) {
   })
 }
 
-console.log('Windows 7 build: Electron 22.3.27, Chrome 108, Node 16.17, x64 and ia32')
+console.log('Windows 7 build: Electron 22.3.27, Chrome 108, Node 16.17, ia32 (32-bit)')
 
 await run(['node_modules/typescript/bin/tsc', '--noEmit', '-p', 'tsconfig.node.json', '--composite', 'false'])
 await run(['node_modules/typescript/bin/tsc', '--noEmit', '-p', 'tsconfig.web.json', '--composite', 'false'])
 await run(['node_modules/electron-vite/bin/electron-vite.js', 'build'])
-await run(['node_modules/electron-builder/cli.js', '--win', '--config', 'electron-builder.win7.yml'])
+await run(['node_modules/electron-builder/cli.js', '--win', '--config', 'electron-builder.win7.yml', '--ia32'])

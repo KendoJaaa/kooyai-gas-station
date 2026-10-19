@@ -1,15 +1,26 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { AppStore } from '../shared/store'
-import type { OpenPathResult, PdfResult, SaveResult, SyncSettings } from '../shared/types'
+import type { SalesTaxPeriod } from '../shared/taxPeriod'
+import type {
+  AppUpdateStatus,
+  OpenPathResult,
+  PdfResult,
+  SaveResult,
+  SyncSettings,
+  UpdateInstallResult
+} from '../shared/types'
 
 export interface AppApi {
   loadStore: () => Promise<AppStore>
   saveStore: (store: AppStore) => Promise<SaveResult>
   exportPdf: () => Promise<PdfResult>
-  exportTaxPdf: (month: string) => Promise<PdfResult>
+  exportTaxPdf: (period: SalesTaxPeriod) => Promise<PdfResult>
   getSyncSettings: () => Promise<SyncSettings>
   syncNow: () => Promise<SaveResult>
-  notifyPrintReady: () => void
+  getUpdateStatus: () => Promise<AppUpdateStatus>
+  checkForUpdate: () => Promise<AppUpdateStatus>
+  downloadUpdate: () => Promise<UpdateInstallResult>
+  notifyPrintReady: (error?: string) => void
   openPath: (filePath: string) => Promise<OpenPathResult>
 }
 

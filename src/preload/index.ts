@@ -1,17 +1,35 @@
 import { contextBridge, ipcRenderer } from 'electron'
+
+// contextIsolation blocks automatic capture of errors in this script.
+if (Number(process.versions.electron.split('.')[0] ?? '0') >= 35) {
+  void import('@sentry/electron/renderer').then((Sentry) => {
+    Sentry.init()
+  })
+}
 import { electronAPI } from '@electron-toolkit/preload'
 import type { AppStore } from '../shared/store'
-import type { OpenPathResult, PdfResult, SaveResult, SyncSettings } from '../shared/types'
+import type { SalesTaxPeriod } from '../shared/taxPeriod'
+import type {
+  AppUpdateStatus,
+  OpenPathResult,
+  PdfResult,
+  SaveResult,
+  SyncSettings,
+  UpdateInstallResult
+} from '../shared/types'
 
 const api = {
   loadStore: (): Promise<AppStore> => ipcRenderer.invoke('store:load'),
   saveStore: (store: AppStore): Promise<SaveResult> => ipcRenderer.invoke('store:save', store),
   exportPdf: (): Promise<PdfResult> => ipcRenderer.invoke('pdf:export'),
-  exportTaxPdf: (month: string): Promise<PdfResult> => ipcRenderer.invoke('pdf:exportTax', month),
+  exportTaxPdf: (period: SalesTaxPeriod): Promise<PdfResult> => ipcRenderer.invoke('pdf:exportTax', period),
   getSyncSettings: (): Promise<SyncSettings> => ipcRenderer.invoke('sync:getSettings'),
   syncNow: (): Promise<SaveResult> => ipcRenderer.invoke('sync:now'),
-  notifyPrintReady: (): void => {
-    ipcRenderer.send('print:ready')
+  getUpdateStatus: (): Promise<AppUpdateStatus> => ipcRenderer.invoke('update:status'),
+  checkForUpdate: (): Promise<AppUpdateStatus> => ipcRenderer.invoke('update:check'),
+  downloadUpdate: (): Promise<UpdateInstallResult> => ipcRenderer.invoke('update:download'),
+  notifyPrintReady: (error?: string): void => {
+    ipcRenderer.send('print:ready', error)
   },
   openPath: (filePath: string): Promise<OpenPathResult> => ipcRenderer.invoke('file:open', filePath)
 }

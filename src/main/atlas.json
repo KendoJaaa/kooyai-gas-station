@@ -1,0 +1,9 @@
+{
+  "hosts": [
+    "ac-xo0ih5p-shard-00-00.oa4zwkh.mongodb.net:27017",
+    "ac-xo0ih5p-shard-00-01.oa4zwkh.mongodb.net:27017",
+    "ac-xo0ih5p-shard-00-02.oa4zwkh.mongodb.net:27017"
+  ],
+  "replicaSet": "atlas-qtwlt0-shard-0",
+  "database": "kooyai"
+}

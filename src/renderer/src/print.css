@@ -1,6 +1,6 @@
 @page {
   size: A4 landscape;
-  margin: 8mm 6mm;
+  margin: 7mm 6mm;
 }
 
 html,
@@ -11,6 +11,143 @@ body,
   background: #fff;
   color: #000;
   font-family: 'Leelawadee UI', Tahoma, 'Segoe UI', sans-serif;
+}
+
+/* Match the daily preview and PDF without changing the editable forms. */
+.kor-print-set .kor-page {
+  font-size: 13px;
+}
+
+.kor-print-set .kor-header {
+  font-size: 17px;
+}
+
+.kor-print-set .kor-header__corner {
+  max-width: 230px;
+}
+
+.kor-print-set .kor-header__titles {
+  padding: 0 240px 6px;
+}
+
+.kor-print-set .kor-header__title {
+  font-size: 22px;
+}
+
+.kor-print-set .kor-header__period {
+  font-size: 18px;
+}
+
+.kor-print-set .kor-header__printed {
+  font-size: 18px;
+  white-space: normal;
+  text-align: right;
+}
+
+.kor-print-set .kor-header__part {
+  font-size: 18px;
+}
+
+.kor-print-set .kor-table {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.kor-print-set .kor-table th,
+.kor-print-set .kor-table td {
+  padding: 1px 2px;
+}
+
+/* Give long meter readings room without squeezing the summary labels. */
+.kor-print-set .kor-col-idx {
+  width: 10.6%;
+}
+
+.kor-print-set .kor-col-metric {
+  width: 6.8%;
+}
+
+.kor-print-set .kor-col-metric:nth-child(4n + 2),
+.kor-print-set .kor-col-metric:nth-child(4n + 3) {
+  width: 8.1%;
+}
+
+.kor-print-set .kor-td-summary {
+  font-size: 11px;
+}
+
+.kor-print-set .kor-td-summary--indent {
+  padding-left: 8px;
+}
+
+.kor-print-set .kor-vat-bar {
+  font-size: 16px;
+}
+
+.kor-print-set .kor-hand th {
+  font-size: 12px;
+  white-space: normal;
+}
+
+.kor-print-set .kor-hand td {
+  height: 12px;
+}
+
+.kor-print-set .kor-sales-table {
+  font-size: 14px;
+  line-height: 1.15;
+}
+
+.kor-print-set .kor-sales-table .kor-col-idx {
+  width: 6.4%;
+}
+
+.kor-print-set .kor-sales-table .kor-col-metric {
+  width: 6.6%;
+}
+
+.kor-print-set .kor-sales-table .kor-col-metric:nth-child(4n + 5) {
+  width: 7%;
+}
+
+.kor-print-set .kor-sales-table .kor-col-metric:nth-child(4n + 2),
+.kor-print-set .kor-sales-table .kor-col-metric:nth-child(4n + 3) {
+  width: 8.8%;
+}
+
+.kor-print-set .kor-sales-table .kor-row-summary .kor-td-summary {
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.kor-print-set .kor-sales-table .kor-num {
+  font-family: Arial, sans-serif;
+}
+
+.kor-print-set .kor-sales-table .kor-row-price .kor-td-summary {
+  font-size: 14px;
+}
+
+.kor-print-set .khor-table {
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.kor-print-set .khor-th-label {
+  width: 40%;
+}
+
+.kor-print-set .khor-table .kor-th-fuel {
+  font-size: 18px;
+}
+
+.kor-print-set .khor-table .kor-td-summary {
+  font-size: 20px;
+}
+
+.kor-print-set .khor-table th,
+.kor-print-set .khor-table td {
+  padding: 7px 6px;
 }
 
 @media screen {

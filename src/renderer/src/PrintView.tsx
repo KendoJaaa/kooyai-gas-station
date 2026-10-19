@@ -7,6 +7,7 @@ import { KhorFormPage } from './kor-form/KhorFormPage'
 import { KorFormPage } from './kor-form/KorFormPage'
 import { korHeaderFrom } from './kor-form/sampleHeader'
 import './print.css'
+import { usePrintReady } from './usePrintReady'
 
 export function PrintView(): JSX.Element {
   const [store, setStore] = useState<AppStore | null>(null)
@@ -29,16 +30,16 @@ export function PrintView(): JSX.Element {
       .catch((err: unknown) => {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
-        setStore(emptyStore(isoToday()))
-      })
-      .finally(() => {
-        window.setTimeout(() => window.api.notifyPrintReady(), 50)
       })
 
     return () => {
       cancelled = true
     }
   }, [])
+
+  usePrintReady(Boolean(store), error)
+
+  if (error) return <Text c="red">{error}</Text>
 
   if (!store) {
     return (

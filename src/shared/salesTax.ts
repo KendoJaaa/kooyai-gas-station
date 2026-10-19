@@ -1,4 +1,5 @@
 import { emptyDay, korFuelSheet, meterHistory, priceForFuel, type DayRecord } from './reports'
+import { isSalesTaxPeriod, type SalesTaxPeriod } from './taxPeriod'
 import {
   fuelById,
   machineDay,
@@ -26,8 +27,7 @@ export interface SalesTaxLine {
   vatBaht: number
 }
 
-export interface SalesTaxReport {
-  month: string
+export interface SalesTaxReport extends SalesTaxPeriod {
   lines: SalesTaxLine[]
   totalBase: number
   totalVat: number
@@ -129,13 +129,17 @@ function grossBaht(
 export function buildSalesTaxReport(
   config: StationConfig,
   days: Record<string, DayRecord>,
-  month: string,
+  period: SalesTaxPeriod,
   today: string
 ): SalesTaxReport {
+  if (!isSalesTaxPeriod(period, today)) throw new Error('ช่วงวันที่รายงานภาษีขายไม่ถูกต้อง')
   const groups = salesTaxGroups(config)
+  // Earlier readings and prices still carry forward; only the printed dates are filtered.
   const history = meterHistory(days)
   const lines: SalesTaxLine[] = []
-  const dates = monthDates(month, today)
+  const dates = monthDates(period.month, today).filter(
+    (date) => date >= period.startDate && date <= period.endDate
+  )
 
   dates.forEach((date, dateIndex) => {
     const day = days[date]
@@ -176,7 +180,7 @@ export function buildSalesTaxReport(
   })
 
   return {
-    month,
+    ...period,
     lines,
     totalBase: roundBaht(lines.reduce((sum, line) => sum + line.baseBaht, 0)),
     totalVat: roundBaht(lines.reduce((sum, line) => sum + line.vatBaht, 0))

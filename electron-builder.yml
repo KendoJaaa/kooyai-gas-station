@@ -1,33 +1,51 @@
-appId: com.kooyai.gasstation
-productName: แบบบันทึกสถานีน้ำมัน
+appId: com.kooyai.banthukpum
+productName: บันทึกปั้ม
 copyright: Copyright © 2026 KendoJaaa
 directories:
   buildResources: build
   output: dist
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml,bun.lock}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - out/**
+  - package.json
+  - '!out/**/*.map'
+  - '!out/tests/**'
+extraResources:
+  - from: resources/company-db.json
+    to: company-db.json
+  - from: resources/apply-update.cmd
+    to: apply-update.cmd
+  - from: resources/apply-update.sh
+    to: apply-update.sh
 asarUnpack:
   - resources/**
   - node_modules/mongodb/**
   - node_modules/bson/**
+mac:
+  icon: build/icon.png
+  category: public.app-category.business
+  target:
+    - dmg
+  artifactName: ปั้ม-Mac.${ext}
+  identity: null
+dmg:
+  title: บันทึกปั้ม
+  artifactName: ปั้ม-Mac.${ext}
 win:
-  executableName: kooyai-gas-station
+  icon: build/icon.png
+  executableName: banthukpum
   target:
     - nsis
     - zip
 nsis:
   include: build/installer.nsh
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ปั้ม.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
+toolsets:
+  wine: "1.0.1"
 npmRebuild: false
 publish: null

@@ -8,4 +8,8 @@ release
 .idea
 .vscode
 *.local
+.env
+.env.*
 resources/company-db.json
+!.env.example
+output/

@@ -13,9 +13,11 @@ import {
 import { unusedNozzleMeters, type DayReadings } from '../../shared/station'
 import { dayFor, withDay, type AppStore } from '../../shared/store'
 import { retentionStart } from '../../shared/retention'
+import { isSalesTaxPeriod } from '../../shared/taxPeriod'
 import { DailyCloseSheet } from './DailyCloseSheet'
 import { DayExtras } from './DayExtras'
 import { useStationStore } from './StationStore'
+import { AppVersion } from './AppVersion'
 import { isoToday, isoYesterday, savedAtLabel } from './kor-form/dates'
 import { formatMeter, parseMeter } from './kor-form/numbers'
 import {
@@ -158,6 +160,10 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
   const [pendingDate, setPendingDate] = useState<string | null>(null)
   const [taxOpen, setTaxOpen] = useState(false)
   const [taxMonth, setTaxMonth] = useState<Date | null>(dayjs(isoYesterday()).startOf('month').toDate())
+  const [taxDates, setTaxDates] = useState<[string | null, string | null]>([
+    dayjs(isoYesterday()).startOf('month').format('YYYY-MM-DD'),
+    isoYesterday()
+  ])
   const [exportingTax, setExportingTax] = useState(false)
 
   const loadDate = (nextStore: AppStore, nextDate: string): void => {
@@ -337,20 +343,35 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
     void runSave(exportPdf)
   }
 
+  const selectTaxMonth = (value: Date | string | null): void => {
+    const selected = value ? dayjs(value) : null
+    if (!selected?.isValid()) {
+      setTaxMonth(null)
+      setTaxDates([null, null])
+      return
+    }
+    setTaxMonth(selected.startOf('month').toDate())
+    const end = selected.endOf('month').format('YYYY-MM-DD')
+    setTaxDates([selected.startOf('month').format('YYYY-MM-DD'), end > isoToday() ? isoToday() : end])
+  }
+
   const openTaxReport = (): void => {
-    setTaxMonth(dayjs(date).startOf('month').toDate())
+    if (!taxMonth || dayjs(taxMonth).format('YYYY-MM') !== date.slice(0, 7)) {
+      selectTaxMonth(date)
+    }
     setTaxOpen(true)
   }
 
-  const savedDaysInTaxMonth = useMemo(() => {
-    if (!taxMonth) return 0
-    const month = dayjs(taxMonth).format('YYYY-MM')
-    return Object.keys(store.days).filter((key) => key.startsWith(`${month}-`)).length
-  }, [store.days, taxMonth])
+  const taxPeriod = taxMonth && taxDates[0] && taxDates[1]
+    ? { month: dayjs(taxMonth).format('YYYY-MM'), startDate: taxDates[0], endDate: taxDates[1] }
+    : null
+  const validTaxPeriod = isSalesTaxPeriod(taxPeriod, isoToday()) ? taxPeriod : null
+  const savedDaysInTaxRange = validTaxPeriod
+    ? Object.keys(store.days).filter((key) => key >= validTaxPeriod.startDate && key <= validTaxPeriod.endDate).length
+    : 0
 
   const exportTaxReport = async (): Promise<void> => {
-    if (!taxMonth) return
-    const month = dayjs(taxMonth).format('YYYY-MM')
+    if (!validTaxPeriod) return
     if (!window.api?.exportTaxPdf) {
       notifications.show({
         color: 'yellow',
@@ -361,7 +382,7 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
     }
     setExportingTax(true)
     try {
-      const result = await window.api.exportTaxPdf(month)
+      const result = await window.api.exportTaxPdf(validTaxPeriod)
       if (!result.ok) {
         if ('canceled' in result && result.canceled) return
         notifications.show({
@@ -390,8 +411,9 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
         <Group h="100%" justify="space-between" wrap="nowrap" gap="md" align="center">
           <Group wrap="nowrap" gap="md" align="center">
             <Text fw={700} style={{ whiteSpace: 'nowrap' }}>
-              แบบบันทึกสถานีน้ำมัน
+              บันทึกปั้ม
             </Text>
+            <AppVersion />
             <Group wrap="nowrap" gap="xs" align="center">
               <Text size="sm" style={{ whiteSpace: 'nowrap' }}>
                 วันที่ (เมื่อวาน)
@@ -553,7 +575,8 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
           <Modal opened={taxOpen} onClose={() => setTaxOpen(false)} title="รายงานภาษีขาย" centered>
             <Stack gap="md">
               <Text size="sm">
-                รวมทุกวันในเดือนที่เลือก จากยอดปิดรายวันที่บันทึกไว้ มูลค่าสินค้าและภาษีขายใช้ตัวเลขชุดเดียวกับส่วน ก
+                เลือกเฉพาะช่วงวันที่ที่ต้องการพิมพ์ เพื่อไม่พิมพ์ซ้ำกับช่วงก่อนหน้า
+                รายงานรวมเฉพาะวันที่เริ่มต้นถึงวันที่สิ้นสุด โดยใช้ยอดปิดรายวันที่บันทึกไว้
               </Text>
               <MonthPickerInput
                 label="เดือนภาษี"
@@ -562,25 +585,42 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
                 value={taxMonth}
                 maxDate={dayjs(isoToday()).toDate()}
                 minDate={dayjs(retentionStart(isoToday())).toDate()}
-                onChange={(value) => {
-                  if (!value) {
-                    setTaxMonth(null)
-                    return
-                  }
-                  const parsed = dayjs(value as Date | string)
-                  setTaxMonth(parsed.isValid() ? parsed.startOf('month').toDate() : null)
-                }}
+                onChange={(value) => selectTaxMonth(value as Date | string | null)}
+                disabled={exportingTax}
+              />
+              <DatePickerInput
+                type="range"
+                allowSingleDateInRange
+                label="ช่วงวันที่ที่ต้องการส่งออก"
+                description="รวมวันที่เริ่มต้นและวันที่สิ้นสุด เลือกวันเดียวได้"
+                locale="th"
+                valueFormat="D MMMM BBBB"
+                value={taxDates}
+                minDate={taxMonth ? dayjs(taxMonth).startOf('month').toDate() : undefined}
+                maxDate={taxMonth
+                  ? dayjs(taxMonth).endOf('month').isBefore(dayjs(isoToday()))
+                    ? dayjs(taxMonth).endOf('month').toDate()
+                    : dayjs(isoToday()).toDate()
+                  : undefined}
+                onChange={(values) => setTaxDates([
+                  values[0] ? toIsoDate(values[0]) : null,
+                  values[1] ? toIsoDate(values[1]) : null
+                ])}
+                disabled={!taxMonth || exportingTax}
+                error={taxPeriod && !validTaxPeriod ? 'เลือกช่วงวันที่ภายในเดือนภาษีที่เลือก และไม่เกินวันนี้' : undefined}
               />
               <Text size="sm" c="dimmed">
-                {savedDaysInTaxMonth > 0
-                  ? `บันทึกไว้แล้ว ${savedDaysInTaxMonth} วัน วันที่ยังไม่ปิดยอดจะเป็นช่องว่าง`
-                  : 'เดือนนี้ยังไม่มีวันปิดยอด รายงานจะเป็นช่องว่างทุกวัน'}
+                {!validTaxPeriod
+                  ? 'เลือกวันที่เริ่มต้นและวันที่สิ้นสุดก่อนส่งออก'
+                  : savedDaysInTaxRange > 0
+                    ? `ช่วงนี้บันทึกไว้แล้ว ${savedDaysInTaxRange} วัน วันที่ยังไม่ปิดยอดจะเป็นช่องว่าง`
+                    : 'ช่วงนี้ยังไม่มีวันปิดยอด รายงานจะเป็นช่องว่างทุกวัน'}
               </Text>
               <Group justify="flex-end">
                 <Button variant="default" onClick={() => setTaxOpen(false)}>
                   ยกเลิก
                 </Button>
-                <Button loading={exportingTax} onClick={() => void exportTaxReport()}>
+                <Button loading={exportingTax} disabled={!validTaxPeriod} onClick={() => void exportTaxReport()}>
                   ส่งออก PDF
                 </Button>
               </Group>

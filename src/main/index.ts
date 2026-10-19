@@ -1,3 +1,4 @@
+import { reportSyncFailure, reportSyncSkipped } from './sentry'
 import { app, shell, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile, mkdir, stat } from 'fs/promises'
@@ -5,12 +6,15 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { emptyStore, isAppStore, migrateStore, type AppStore } from '../shared/store'
 import { mergeStores, touchStore } from '../shared/sync'
 import { pruneOldDays } from '../shared/retention'
-import type { PdfResult, SaveResult, SyncSettings } from '../shared/types'
+import { isSalesTaxPeriod, type SalesTaxPeriod } from '../shared/taxPeriod'
+import { applyPendingUpdate, checkForUpdate, downloadAvailableUpdate, getUpdateStatus, installUpdateHooks } from './updates'
+import type { AppUpdateStatus, PdfResult, SaveResult, SyncSettings, UpdateInstallResult } from '../shared/types'
 import { pullRemoteStore, pushRemoteStore } from './mongo'
 import { companyDatabaseUri } from './companyDb'
 import { loadSyncSettings, saveSyncSettings } from './syncSettings'
 
 const STORE_FILE = 'station.json'
+const printSnapshots = new Map<number, AppStore>()
 
 function todayIso(): string {
   const now = new Date()
@@ -26,10 +30,12 @@ function pdfFileName(isoDate: string): string {
   return `รายงานส่วนก-ข-${match[3]}-${match[2]}-${be}.pdf`
 }
 
-function taxPdfFileName(month: string): string {
-  const match = /^(\d{4})-(\d{2})$/.exec(month)
-  if (!match) return 'รายงานภาษีขาย.pdf'
-  return `รายงานภาษีขาย-${match[2]}-${Number(match[1]) + 543}.pdf`
+function taxPdfFileName(period: SalesTaxPeriod): string {
+  const label = (date: string): string => {
+    const [year, month, day] = date.split('-')
+    return `${day}-${month}-${Number(year) + 543}`
+  }
+  return `รายงานภาษีขาย-${label(period.startDate)}-ถึง-${label(period.endDate)}.pdf`
 }
 
 function storePath(): string {
@@ -51,6 +57,7 @@ function createWindow(): BrowserWindow {
     minHeight: 700,
     show: false,
     autoHideMenuBar: true,
+    icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -99,52 +106,59 @@ function syncErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'เชื่อมต่อ MongoDB ไม่สำเร็จ'
 }
 
-async function pullAndMerge(local: AppStore, uri: string): Promise<AppStore> {
-  const today = todayIso()
-  const prunedLocal = pruneOldDays(local, today)
+async function saveToCompanyDatabase(
+  local: AppStore,
+  uri: string,
+  preferLocal: boolean
+): Promise<AppStore> {
+  const incoming = preferLocal ? touchStore(local) : local
   const remote = await pullRemoteStore(uri)
-  if (!remote) return prunedLocal
-  const merged = pruneOldDays(mergeStores(prunedLocal, remote), today)
-  await writeLocalStore(merged)
-  if (Object.keys(merged.days).length < Object.keys(remote.days).length) {
-    await pushRemoteStore(uri, touchStore(merged))
-  }
-  return merged
+  const cloud = touchStore(remote ? mergeStores(incoming, remote) : incoming)
+  await pushRemoteStore(uri, cloud)
+  const onThisPc = pruneOldDays(cloud, todayIso())
+  await writeLocalStore(onThisPc)
+  return onThisPc
 }
 
 async function loadStore(): Promise<AppStore> {
-  const local = pruneOldDays(await loadLocalStore(), todayIso())
+  const local = await loadLocalStore()
   const uri = await companyDatabaseUri()
   const settings = await loadSyncSettings()
   if (!uri) {
-    await writeLocalStore(local)
-    return local
+    const onThisPc = pruneOldDays(local, todayIso())
+    await writeLocalStore(onThisPc)
+    return onThisPc
   }
   try {
-    const merged = await pullAndMerge(local, uri)
+    const onThisPc = await saveToCompanyDatabase(local, uri, false)
     await saveSyncSettings({
       ...settings,
       lastSyncAt: new Date().toISOString(),
       lastSyncError: undefined
     })
-    return merged
+    return onThisPc
   } catch (error) {
+    reportSyncFailure(error, { operation: 'load' })
     await saveSyncSettings({
       ...settings,
       lastSyncError: syncErrorMessage(error)
     })
-    return local
+    const onThisPc = pruneOldDays(local, todayIso())
+    await writeLocalStore(onThisPc)
+    return onThisPc
   }
 }
 
 async function saveStore(store: AppStore): Promise<SaveResult> {
-  const stamped = touchStore(pruneOldDays(store, todayIso()))
-  await writeLocalStore(stamped)
   const uri = await companyDatabaseUri()
   const settings = await loadSyncSettings()
-  if (!uri) return { ok: true, synced: false, syncMessage: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
+  if (!uri) {
+    reportSyncSkipped('save-no-uri', 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท')
+    await writeLocalStore(touchStore(pruneOldDays(store, todayIso())))
+    return { ok: true, synced: false, syncMessage: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
+  }
   try {
-    await pushRemoteStore(uri, stamped)
+    await saveToCompanyDatabase(store, uri, true)
     await saveSyncSettings({
       ...settings,
       lastSyncAt: new Date().toISOString(),
@@ -152,6 +166,8 @@ async function saveStore(store: AppStore): Promise<SaveResult> {
     })
     return { ok: true, synced: true }
   } catch (error) {
+    reportSyncFailure(error, { operation: 'save' })
+    await writeLocalStore(touchStore(pruneOldDays(store, todayIso())))
     const message = syncErrorMessage(error)
     await saveSyncSettings({ ...settings, lastSyncError: message })
     return { ok: true, synced: false, syncMessage: message }
@@ -165,19 +181,23 @@ function waitForPrintReady(printWindow: BrowserWindow, timeoutMs = 12_000): Prom
       reject(new Error('หน้าพิมพ์ไม่พร้อมภายในเวลาที่กำหนด'))
     }, timeoutMs)
 
-    const onReady = (_event: Electron.IpcMainEvent): void => {
+    const onReady = (_event: Electron.IpcMainEvent, error?: unknown): void => {
       if (_event.sender !== printWindow.webContents) return
       clearTimeout(timer)
       ipcMain.removeListener('print:ready', onReady)
-      resolve()
+      if (typeof error === 'string' && error) reject(new Error(error))
+      else resolve()
     }
 
     ipcMain.on('print:ready', onReady)
   })
 }
 
-async function exportPdf(kind: 'daily' | 'tax' = 'daily', month = ''): Promise<PdfResult> {
+async function exportPdf(kind: 'daily' | 'tax' = 'daily', period?: SalesTaxPeriod): Promise<PdfResult> {
   const tax = kind === 'tax'
+  if (tax && !isSalesTaxPeriod(period, todayIso())) {
+    return { ok: false, message: 'เลือกช่วงวันที่ภายในเดือนภาษีเดียวกัน และไม่เกินวันนี้' }
+  }
   const printWindow = new BrowserWindow({
     width: tax ? 794 : 1123,
     height: tax ? 1123 : 794,
@@ -191,14 +211,21 @@ async function exportPdf(kind: 'daily' | 'tax' = 'daily', month = ''): Promise<P
   })
 
   try {
+    const saved = await loadLocalStore()
+    printSnapshots.set(printWindow.webContents.id, saved)
     const ready = waitForPrintReady(printWindow)
-    const search = tax ? `?print=tax&month=${encodeURIComponent(month)}` : '?print=1'
+    // Handle rejection even if loading the print page fails before we await it.
+    void ready.catch(() => undefined)
+    const query: Record<string, string> = tax && period
+      ? { print: 'tax', month: period.month, startDate: period.startDate, endDate: period.endDate }
+      : { print: '1' }
+    const search = `?${new URLSearchParams(query).toString()}`
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
       await printWindow.loadURL(rendererUrl(search))
     } else {
       await printWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        query: tax ? { print: 'tax', month } : { print: '1' }
+        query
       })
     }
 
@@ -221,8 +248,7 @@ async function exportPdf(kind: 'daily' | 'tax' = 'daily', month = ''): Promise<P
           }
     )
 
-    const saved = await loadStore()
-    const defaultName = tax ? taxPdfFileName(month) : pdfFileName(saved.activeDate || todayIso())
+    const defaultName = tax && period ? taxPdfFileName(period) : pdfFileName(saved.activeDate || todayIso())
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'บันทึกไฟล์ PDF',
       defaultPath: join(app.getPath('documents'), defaultName),
@@ -239,20 +265,25 @@ async function exportPdf(kind: 'daily' | 'tax' = 'daily', month = ''): Promise<P
     const message = error instanceof Error ? error.message : 'ส่งออก PDF ไม่สำเร็จ'
     return { ok: false, message }
   } finally {
+    printSnapshots.delete(printWindow.webContents.id)
     if (!printWindow.isDestroyed()) printWindow.close()
   }
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.kooyai.gasstation')
+void applyPendingUpdate(true).then((updating) => {
+  if (updating) return
+  installUpdateHooks(companyDatabaseUri)
+
+  app.whenReady().then(() => {
+  electronApp.setAppUserModelId('com.kooyai.banthukpum')
   Menu.setApplicationMenu(null)
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  ipcMain.handle('store:load', async (): Promise<AppStore> => {
-    return loadStore()
+  ipcMain.handle('store:load', async (event): Promise<AppStore> => {
+    return printSnapshots.get(event.sender.id) ?? loadStore()
   })
 
   ipcMain.handle('store:save', async (_event, store: AppStore): Promise<SaveResult> => {
@@ -281,12 +312,12 @@ app.whenReady().then(() => {
     try {
       const uri = await companyDatabaseUri()
       if (!uri) {
+        reportSyncSkipped('sync-no-uri', 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท')
         return { ok: false, message: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
       }
       const local = await loadLocalStore()
       const settings = await loadSyncSettings()
-      const merged = await pullAndMerge(local, uri)
-      await pushRemoteStore(uri, touchStore(merged))
+      await saveToCompanyDatabase(local, uri, false)
       await saveSyncSettings({
         ...settings,
         lastSyncAt: new Date().toISOString(),
@@ -294,6 +325,7 @@ app.whenReady().then(() => {
       })
       return { ok: true, synced: true }
     } catch (error) {
+      reportSyncFailure(error, { operation: 'syncNow' })
       return { ok: false, message: syncErrorMessage(error) }
     }
   })
@@ -302,11 +334,23 @@ app.whenReady().then(() => {
     return exportPdf('daily')
   })
 
-  ipcMain.handle('pdf:exportTax', async (_event, month: unknown): Promise<PdfResult> => {
-    if (typeof month !== 'string' || !/^\d{4}-\d{2}$/.test(month)) {
-      return { ok: false, message: 'เดือนไม่ถูกต้อง' }
+  ipcMain.handle('pdf:exportTax', async (_event, period: unknown): Promise<PdfResult> => {
+    if (!isSalesTaxPeriod(period, todayIso())) {
+      return { ok: false, message: 'เลือกช่วงวันที่ภายในเดือนภาษีเดียวกัน และไม่เกินวันนี้' }
     }
-    return exportPdf('tax', month)
+    return exportPdf('tax', period)
+  })
+
+  ipcMain.handle('update:status', async (): Promise<AppUpdateStatus> => {
+    return getUpdateStatus()
+  })
+
+  ipcMain.handle('update:check', async (): Promise<AppUpdateStatus> => {
+    return checkForUpdate(companyDatabaseUri)
+  })
+
+  ipcMain.handle('update:download', async (): Promise<UpdateInstallResult> => {
+    return downloadAvailableUpdate(companyDatabaseUri)
   })
 
   ipcMain.handle('file:open', async (_event, filePath: unknown): Promise<{ ok: true } | { ok: false; message: string }> => {
@@ -331,8 +375,9 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
 })

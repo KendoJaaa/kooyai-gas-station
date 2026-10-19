@@ -1,6 +1,6 @@
 {
   "name": "kooyai-gas-station",
-  "version": "1.1.2",
+  "version": "1.1.11",
   "description": "แบบบันทึกสถานีน้ำมัน ออฟไลน์ สำหรับ Windows — บันทึกในเครื่อง ส่งออก PDF",
   "main": "./out/main/index.js",
   "author": "KendoJaaa",
@@ -15,12 +15,15 @@
     "build": "bun run typecheck && electron-vite build",
     "postinstall": "node node_modules/electron-builder/cli.js install-app-deps",
     "build:win": "bun run build && electron-builder --win nsis",
-    "build:win7": "bun scripts/build-win7.mjs"
+    "build:win7": "bun scripts/build-win7.mjs",
+    "build:mac": "bun run build && node node_modules/electron-builder/cli.js --mac dmg",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "mongodb": "^6.21.0"
+    "mongodb": "^6.21.0",
+    "@sentry/electron": "8.0.0"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",
@@ -45,6 +48,7 @@
     "react-dom": "^19.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@sentry/vite-plugin": "^5.4.0"
   }
 }

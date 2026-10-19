@@ -63,7 +63,7 @@ export function KorFormTable({
   const sheetByFuel = new Map(sheets.map((sheet) => [sheet.fuel.id, sheet]))
 
   return (
-    <table className="kor-table">
+    <table className="kor-table kor-sales-table">
       <colgroup>
         <col className="kor-col-idx" />
         {fuels.flatMap((fuel) =>
@@ -132,12 +132,13 @@ export function KorFormTable({
         })}
 
         <tr className="kor-row-summary">
-          <td className="kor-td-summary">1. รวม</td>
-          {fuels.map((fuel) => {
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary">1. รวม</td>
+          {fuels.map((fuel, index) => {
             const sheet = sheetByFuel.get(fuel.id)
             return (
               <FuelAmountCells
                 key={fuel.id}
+                hideMeterCells={!editable && index === 0}
                 liters={sheet?.gross.liters ?? 0}
                 baht={sheet?.gross.baht ?? 0}
               />
@@ -146,12 +147,13 @@ export function KorFormTable({
         </tr>
 
         <tr className="kor-row-summary">
-          <td className="kor-td-summary">2. หักทดสอบน้ำมัน</td>
-          {fuels.map((fuel) => {
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary">2. หักทดสอบน้ำมัน</td>
+          {fuels.map((fuel, index) => {
             const sheet = sheetByFuel.get(fuel.id)
             return (
               <FuelAmountCells
                 key={fuel.id}
+                hideMeterCells={!editable && index === 0}
                 liters={sheet?.testLiters ?? 0}
                 baht={sheet?.testBaht ?? 0}
               />
@@ -160,12 +162,13 @@ export function KorFormTable({
         </tr>
 
         <tr className="kor-row-summary">
-          <td className="kor-td-summary kor-td-summary--indent">หักอื่นๆ (ระบุ) น้ำมันใช้เอง</td>
-          {fuels.map((fuel) => {
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary kor-td-summary--indent">หักอื่นๆ (ระบุ) น้ำมันใช้เอง</td>
+          {fuels.map((fuel, index) => {
             const sheet = sheetByFuel.get(fuel.id)
             return (
               <FuelAmountCells
                 key={fuel.id}
+                hideMeterCells={!editable && index === 0}
                 liters={sheet?.ownUseLiters ?? 0}
                 baht={sheet?.ownUseBaht ?? 0}
               />
@@ -174,12 +177,13 @@ export function KorFormTable({
         </tr>
 
         <tr className="kor-row-summary">
-          <td className="kor-td-summary">3. รวมยอดขายประจำวัน (1-2)</td>
-          {fuels.map((fuel) => {
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary">3. รวมยอดขายประจำวัน (1-2)</td>
+          {fuels.map((fuel, index) => {
             const sheet = sheetByFuel.get(fuel.id)
             return (
               <FuelAmountCells
                 key={fuel.id}
+                hideMeterCells={!editable && index === 0}
                 liters={sheet?.dailySales.liters ?? 0}
                 baht={sheet?.dailySales.baht ?? 0}
               />
@@ -188,30 +192,45 @@ export function KorFormTable({
         </tr>
 
         <tr className="kor-row-summary">
-          <td className="kor-td-summary">4. หักส่วนลดการค้า</td>
-          {fuels.map((fuel) => {
-            const sheet = sheetByFuel.get(fuel.id)
-            return <FuelAmountCells key={fuel.id} bahtOnly baht={sheet?.tradeDiscountBaht ?? 0} />
-          })}
-        </tr>
-
-        <tr className="kor-row-summary">
-          <td className="kor-td-summary kor-td-summary--indent">
-            หักส่วนลดการค้าอื่นๆ (ระบุ) เงินเชื่อ
-          </td>
-          {fuels.map((fuel) => {
-            const sheet = sheetByFuel.get(fuel.id)
-            return <FuelAmountCells key={fuel.id} bahtOnly baht={sheet?.creditDiscountBaht ?? 0} />
-          })}
-        </tr>
-
-        <tr className="kor-row-summary">
-          <td className="kor-td-summary">5. ยอดขายสุทธิ (3-4)</td>
-          {fuels.map((fuel) => {
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary">4. หักส่วนลดการค้า</td>
+          {fuels.map((fuel, index) => {
             const sheet = sheetByFuel.get(fuel.id)
             return (
               <FuelAmountCells
                 key={fuel.id}
+                hideMeterCells={!editable && index === 0}
+                bahtOnly
+                baht={sheet?.tradeDiscountBaht ?? 0}
+              />
+            )
+          })}
+        </tr>
+
+        <tr className="kor-row-summary">
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary kor-td-summary--indent">
+            หักส่วนลดการค้าอื่นๆ (ระบุ) เงินเชื่อ
+          </td>
+          {fuels.map((fuel, index) => {
+            const sheet = sheetByFuel.get(fuel.id)
+            return (
+              <FuelAmountCells
+                key={fuel.id}
+                hideMeterCells={!editable && index === 0}
+                bahtOnly
+                baht={sheet?.creditDiscountBaht ?? 0}
+              />
+            )
+          })}
+        </tr>
+
+        <tr className="kor-row-summary">
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary">5. ยอดขายสุทธิ (3-4)</td>
+          {fuels.map((fuel, index) => {
+            const sheet = sheetByFuel.get(fuel.id)
+            return (
+              <FuelAmountCells
+                key={fuel.id}
+                hideMeterCells={!editable && index === 0}
                 liters={sheet?.netLiters ?? 0}
                 baht={sheet?.netBaht ?? 0}
               />
@@ -220,18 +239,32 @@ export function KorFormTable({
         </tr>
 
         <tr className="kor-row-summary">
-          <td className="kor-td-summary">6. ภาษีขายสุทธิ ((5)*7/107)</td>
-          {fuels.map((fuel) => {
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary">6. ภาษีขายสุทธิ ((5)*7/107)</td>
+          {fuels.map((fuel, index) => {
             const sheet = sheetByFuel.get(fuel.id)
-            return <FuelAmountCells key={fuel.id} bahtOnly baht={sheet?.outputVat ?? 0} />
+            return (
+              <FuelAmountCells
+                key={fuel.id}
+                hideMeterCells={!editable && index === 0}
+                bahtOnly
+                baht={sheet?.outputVat ?? 0}
+              />
+            )
           })}
         </tr>
 
         <tr className="kor-row-summary">
-          <td className="kor-td-summary">7. ภาษีซื้อ</td>
-          {fuels.map((fuel) => {
+          <td colSpan={editable ? 1 : 3} className="kor-td-summary">7. ภาษีซื้อ</td>
+          {fuels.map((fuel, index) => {
             const sheet = sheetByFuel.get(fuel.id)
-            return <FuelAmountCells key={fuel.id} bahtOnly baht={sheet?.inputVat ?? 0} />
+            return (
+              <FuelAmountCells
+                key={fuel.id}
+                hideMeterCells={!editable && index === 0}
+                bahtOnly
+                baht={sheet?.inputVat ?? 0}
+              />
+            )
           })}
         </tr>
 
@@ -309,16 +342,22 @@ function FuelCells({
 function FuelAmountCells({
   liters,
   baht,
-  bahtOnly = false
+  bahtOnly = false,
+  hideMeterCells = false
 }: {
   liters?: number | null
   baht: number | null
   bahtOnly?: boolean
+  hideMeterCells?: boolean
 }): JSX.Element {
   return (
     <>
-      <td className="kor-td-empty"> </td>
-      <td className="kor-td-empty"> </td>
+      {!hideMeterCells ? (
+        <>
+          <td className="kor-td-empty"> </td>
+          <td className="kor-td-empty"> </td>
+        </>
+      ) : null}
       <td className={bahtOnly ? 'kor-td-empty' : 'kor-num kor-td-total'}>
         {bahtOnly ? ' ' : formatMeter(liters)}
       </td>
