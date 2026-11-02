@@ -134,6 +134,22 @@ test('explicit retry downloads a damaged cached archive again and clears the fai
 })
 
 const powershell = process.env.KOOYAI_TEST_POWERSHELL
+test('the replacement helper accepts the already-installed updater argument format', {
+  skip: !powershell && 'Set KOOYAI_TEST_POWERSHELL to run the real helper'
+}, async (t) => {
+  const f = await fixture(t)
+  const target = join(f.root, 'installed app.asar')
+  await writeFile(target, 'old app')
+  const result = spawnSync(powershell, [
+    '-NoProfile', '-NonInteractive', '-File', helperPath,
+    '-PendingPath', join(f.directory, 'app.asar'), '-TargetPath', target,
+    '-MarkerPath', join(f.directory, 'ready.json'), '-Relaunch', '0', '-AppExe', 'unused'
+  ], { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(await readFile(target), archive)
+  assert.equal(await readFile(`${target}.previous`, 'utf8'), 'old app')
+})
+
 for (const corrupt of [false, true]) {
   test(`PowerShell helper ${corrupt ? 'preserves the old app when verification fails' : 'replaces the app and retains a rollback archive'}`, {
     skip: !powershell && 'Set KOOYAI_TEST_POWERSHELL to run the real helper'

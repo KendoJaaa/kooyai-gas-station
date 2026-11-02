@@ -17,7 +17,9 @@ const win7 = process.env.KOOYAI_TEST_TARGET === 'win7'
 const root = await mkdtemp(join(tmpdir(), 'Pum upgrade & ทดสอบ '))
 const screenshots = resolve('test-results', win7 ? 'win7' : 'win')
 await mkdir(screenshots, { recursive: true })
-const installDir = join(root, 'installed app')
+// Include the exact historical installation path that the old cleanup macro
+// deleted before trying to run its uninstaller.
+const installDir = join(process.env.LOCALAPPDATA, 'Programs', 'kooyai-gas-station')
 // Electron resolves appData through the Windows shell, not an APPDATA override.
 // The dedicated CI VM has no real station installation or records.
 const appData = process.env.APPDATA
@@ -64,7 +66,6 @@ async function makeInstaller(version) {
       extraResources: [{ from: companyConfig, to: 'company-db.json' }],
       nsis: {
         artifactName: 'Setup-${version}.exe',
-        oneClick: true, allowToChangeInstallationDirectory: false,
         perMachine: false, runAfterFinish: false
       },
       publish: null
@@ -160,6 +161,12 @@ try {
   const initial = await app.evaluate('window.api.loadStore()')
   assert.equal(initial.identity.stationName, store.identity.stationName)
   await app.close()
+
+  // Repair the installed updater directly, without NSIS or identity changes.
+  await run(process.execPath, ['scripts/package-updater-repair.mjs', '--no-desktop'])
+  await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', resolve('dist/Pum-Updater-Repair/repair-windows-updater.ps1'), '-AppExe', exe, '-NoLaunch'])
+  assert.deepEqual(JSON.parse(await readFile(stationFile, 'utf8')).days, initial.days)
+  await mkdir(updateDir, { recursive: true })
 
   // A corrupt pending update must not block startup or damage the installed app.
   const nextHash = await digest(next.archive)

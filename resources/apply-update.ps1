@@ -1,10 +1,27 @@
 # Keep this compatible with Windows PowerShell 2.0 (Windows 7).
+param(
+    [string]$PendingPath,
+    [string]$TargetPath,
+    [string]$MarkerPath,
+    [string]$Relaunch,
+    [string]$AppExe
+)
 $ErrorActionPreference = 'Stop'
 $pending = $env:KOOYAI_UPDATE_PENDING
 $target = $env:KOOYAI_UPDATE_TARGET
 $marker = $env:KOOYAI_UPDATE_MARKER
 $failure = $env:KOOYAI_UPDATE_FAILURE
 $expectedHash = $env:KOOYAI_UPDATE_SHA256
+if ($PendingPath) {
+    # Compatibility with already-installed apps that call the five-argument CMD
+    # helper. This lets a repair fix the old updater without running an installer.
+    $pending = $PendingPath
+    $target = $TargetPath
+    $marker = $MarkerPath
+    $failure = [System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($marker), 'failed.txt')
+    $env:KOOYAI_UPDATE_RELAUNCH = $Relaunch
+    $env:KOOYAI_UPDATE_EXE = $AppExe
+}
 $staged = $target + '.new'
 $backup = $target + '.previous'
 $installed = $false
@@ -21,8 +38,18 @@ function FileHash($path) {
 }
 
 try {
+    if ($PendingPath) {
+        $match = [System.Text.RegularExpressions.Regex]::Match(
+            [System.IO.File]::ReadAllText($marker), '"sha256"\s*:\s*"([a-fA-F0-9]{64})"'
+        )
+        if (!$match.Success) { throw 'The pending update has no valid checksum. Download it again.' }
+        $expectedHash = $match.Groups[1].Value.ToLowerInvariant()
+    }
     # Wait for the app that requested this update, not every process with its name.
-    $parentProcess = Get-Process -Id ([int]$env:KOOYAI_UPDATE_PID) -ErrorAction SilentlyContinue
+    $parentProcess = $null
+    if (!$PendingPath -and $env:KOOYAI_UPDATE_PID) {
+        $parentProcess = Get-Process -Id ([int]$env:KOOYAI_UPDATE_PID) -ErrorAction SilentlyContinue
+    }
     if ($parentProcess -and !$parentProcess.WaitForExit(30000)) {
         throw 'The app did not close within 30 seconds. Close it before retrying the update.'
     }
@@ -46,6 +73,11 @@ try {
     }
 } catch {
     [System.IO.File]::WriteAllText($failure, $expectedHash + "`n" + $_.Exception.Message)
+    # Older app versions do not understand failed.txt. Move their marker aside
+    # as well, so they cannot retry a failed update at every launch.
+    if ([System.IO.File]::Exists($marker)) {
+        Move-Item -LiteralPath $marker -Destination ($marker + '.failed') -Force -ErrorAction SilentlyContinue
+    }
 } finally {
     if ([System.IO.File]::Exists($staged)) {
         Remove-Item -LiteralPath $staged -Force -ErrorAction SilentlyContinue

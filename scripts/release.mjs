@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { withCompanyDb } from './atlas.mjs'
+import { verifyWindowsCi } from './verify-windows-ci.mjs'
 
 // One command for a release: next version, Windows + Mac on the current Electron,
 // Windows 7 on Electron 22, each update slot gets its own app.asar.
@@ -86,6 +87,8 @@ function keepAsar(from, channel, version) {
   return to
 }
 
+// No production channel may advance on the strength of Mac-only checks.
+await verifyWindowsCi()
 const version = await nextVersion()
 setVersion(version)
 mkdirSync(RELEASE_DIR, { recursive: true })
