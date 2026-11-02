@@ -173,13 +173,21 @@ test('on Windows the production helper survives the app process exiting', {
   const result = spawnSync(process.execPath, [parent], { encoding: 'utf8', timeout: 15_000 })
   assert.equal(result.status, 0, result.stderr)
   const deadline = Date.now() + 15_000
-  while (Date.now() < deadline && !(await readFile(target)).equals(archive)) {
+  let updated = false
+  while (Date.now() < deadline) {
+    try {
+      updated = (await readFile(target)).equals(archive)
+      if (updated) break
+    } catch (error) {
+      // Windows can briefly deny reads while File.Replace swaps the handles.
+      if (!['EBUSY', 'EPERM', 'ENOENT'].includes(error.code)) throw error
+    }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 100))
   }
   const diagnostic = await Promise.all(['helper.log', 'failed.txt'].map(async (name) => {
     try { return `${name}: ${await readFile(join(f.directory, name), 'utf8')}` } catch { return `${name}: absent` }
   }))
-  assert.deepEqual(await readFile(target), archive, `the detached updater must complete after its parent exits\n${diagnostic.join('\n')}`)
+  assert.equal(updated, true, `the independent updater must complete after its parent exits\n${diagnostic.join('\n')}`)
   assert.equal(await readFile(`${target}.previous`, 'utf8'), 'old app')
 })
 
