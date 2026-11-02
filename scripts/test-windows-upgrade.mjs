@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path'
 import { createServer } from 'node:net'
 import { build as bundle } from 'esbuild'
 import { build, Platform, Arch } from 'electron-builder'
+import { x as extractTar } from 'tar'
 
 if (process.platform !== 'win32' || process.env.GITHUB_ACTIONS !== 'true') {
   throw new Error('Run this installer test only on a disposable GitHub Actions Windows VM')
@@ -90,7 +91,8 @@ async function legacySource() {
   const archive = join(root, 'legacy-source.tar')
   await mkdir(legacy)
   await run('git', ['archive', '--format=tar', '-o', archive, '110d800fcfd584e31d2f5e60592b92d42f2f05c5'])
-  await run('tar.exe', ['-xf', archive, '-C', legacy])
+  // The Windows tar.exe build loses Thai characters in command-line paths.
+  await extractTar({ file: archive, cwd: legacy })
   await symlink(resolve('node_modules'), join(legacy, 'node_modules'), 'junction')
   await run(process.execPath, [resolve('node_modules/electron-vite/bin/electron-vite.js'), 'build'], {
     cwd: legacy, env: { ...process.env, ELECTRON_MAJOR_VER: win7 ? '22' : '39' }
