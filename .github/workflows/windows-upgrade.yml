@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -42,7 +43,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node node_modules/typescript/bin/tsc --noEmit -p tsconfig.web.json --composite false
       - name: Updater regression tests on Windows PowerShell
-        run: node --test tests/updates.test.mjs tests/release-validation.test.mjs
+        run: node --test tests/updates.test.mjs tests/release-validation.test.mjs tests/repair.test.mjs
       - name: Build the correct runtime bundle
         run: |
           if ($env:KOOYAI_TEST_TARGET -eq 'win7') { $env:ELECTRON_MAJOR_VER = '22' }
@@ -54,5 +55,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-upgrade-${{ matrix.target }}
-          path: test-results/
+          path: |
+            test-results/
+            dist/Pum-Updater-Repair/Repair-Pum.cmd
+            dist/Pum-Updater-Repair.zip
           if-no-files-found: ignore
