@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, writeFile, copyFile, symlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile, copyFile, symlink, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createServer } from 'node:net'
@@ -15,7 +15,8 @@ if (process.platform !== 'win32' || process.env.GITHUB_ACTIONS !== 'true') {
   throw new Error('Run this installer test only on a disposable GitHub Actions Windows VM')
 }
 const win7 = process.env.KOOYAI_TEST_TARGET === 'win7'
-const root = await mkdtemp(join(tmpdir(), 'Pum upgrade & ทดสอบ '))
+// Vite resolves entry files to long paths, so its root must not use RUNNER~1.
+const root = await realpath(await mkdtemp(join(tmpdir(), 'Pum upgrade & ทดสอบ ')))
 const screenshots = resolve('test-results', win7 ? 'win7' : 'win')
 await mkdir(screenshots, { recursive: true })
 // Include the exact historical installation path that the old cleanup macro
