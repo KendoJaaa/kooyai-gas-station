@@ -181,6 +181,7 @@ try {
   // A complete pending update also must not hijack startup. It applies on close.
   await copyFile(next.archive, join(updateDir, 'app.asar'))
   app = await openApp('1.1.11', '03-valid-update-before-close')
+  assert.equal((await app.evaluate('window.api.getUpdateStatus()')).ready, true, 'the app must verify raw ASAR bytes')
   await app.close()
   await until(async () => (await digest(installedAsar)) === nextHash, 'OTA archive replacement')
   await until(async () => {
@@ -202,5 +203,10 @@ try {
   console.log(`PASS: ${win7 ? 'Electron 22 ia32' : 'current Windows x64'} install, corrupt-update recovery, OTA update, and two same-name reinstalls; station records preserved.`)
 } catch (error) {
   console.error(`Test files retained at ${root}`)
+  try {
+    const failure = await readFile(join(updateDir, 'failed.txt'), 'utf8')
+    await writeFile(join(screenshots, 'updater-failure.txt'), failure)
+    console.error(`Updater failure: ${failure}`)
+  } catch { /* no helper failure record */ }
   throw error
 }

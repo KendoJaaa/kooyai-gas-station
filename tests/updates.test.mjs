@@ -16,7 +16,7 @@ const helperPath = resolve('resources/apply-update.ps1')
 const helperSource = await readFile(helperPath, 'utf8')
 const bundle = await build({
   entryPoints: ['src/main/updates.ts'], bundle: true, platform: 'node', format: 'cjs',
-  write: false, external: ['electron', 'mongodb'],
+  write: false, external: ['electron', 'mongodb', 'original-fs'],
   plugins: [{
     name: 'raw-helper',
     setup(builder) {
@@ -54,6 +54,7 @@ async function fixture(t, { spawnError = false } = {}) {
   runInNewContext(code, {
     module, exports: module.exports,
     require(name) {
+      if (name === 'original-fs') return require('node:fs')
       if (name === 'electron') return { app: {
         isPackaged: true, getPath: () => root, getVersion: () => '1.1.11',
         exit: (value) => exits.push(value)

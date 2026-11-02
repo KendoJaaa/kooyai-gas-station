@@ -1,8 +1,9 @@
 import { spawn } from 'child_process'
 import { createHash } from 'crypto'
-import { createReadStream, createWriteStream } from 'fs'
+// Electron's patched fs treats *.asar as virtual directories. Updates need the
+// raw archive bytes, including when verifying a previously downloaded archive.
+import { createReadStream, createWriteStream, promises as updateFs } from 'original-fs'
 import { pipeline } from 'stream/promises'
-import { mkdir, readFile, rename, rm, writeFile } from 'fs/promises'
 import { GridFSBucket, ObjectId } from 'mongodb'
 import { withDatabase } from './mongo'
 import { dirname, join } from 'path'
@@ -11,6 +12,7 @@ import type { AppUpdateStatus, UpdateInstallResult } from '../shared/types'
 import windowsHelper from '../../resources/apply-update.ps1?raw'
 
 const RELEASES = 'app_releases'
+const { mkdir, readFile, rename, rm, writeFile } = updateFs
 
 type UpdateChannel = 'win' | 'win7' | 'mac'
 
