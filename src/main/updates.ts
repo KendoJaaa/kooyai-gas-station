@@ -8,6 +8,7 @@ import { withDatabase } from './mongo'
 import { dirname, join } from 'path'
 import { app } from 'electron'
 import type { AppUpdateStatus, UpdateInstallResult } from '../shared/types'
+import windowsHelper from '../../resources/apply-update.ps1?raw'
 
 const RELEASES = 'app_releases'
 
@@ -32,6 +33,10 @@ function markerPath(): string {
   return join(updateDir(), 'ready.json')
 }
 
+function failurePath(): string {
+  return join(updateDir(), 'failed.txt')
+}
+
 function updateChannel(): UpdateChannel {
   if (process.platform === 'darwin') return 'mac'
   const major = Number(process.versions.electron.split('.')[0])
@@ -53,39 +58,75 @@ export function compareVersions(left: string, right: string): number {
   return 0
 }
 
-async function readMarker(): Promise<{ version: string; sha256: string } | null> {
+async function readMarker(): Promise<{ version: string; sha256: string; channel?: string } | null> {
   try {
     const parsed = JSON.parse(await readFile(markerPath(), 'utf8')) as {
       version?: unknown
       sha256?: unknown
+      channel?: unknown
     }
     if (typeof parsed.version !== 'string' || typeof parsed.sha256 !== 'string') return null
-    return { version: parsed.version, sha256: parsed.sha256 }
+    return {
+      version: parsed.version,
+      sha256: parsed.sha256,
+      channel: typeof parsed.channel === 'string' ? parsed.channel : undefined
+    }
   } catch {
     return null
   }
 }
 
-function spawnHelper(relaunch: boolean): void {
-  const args = [
-    pendingAsar(),
-    join(process.resourcesPath, 'app.asar'),
-    markerPath(),
-    relaunch ? '1' : '0',
-    process.execPath
-  ]
-  const child =
-    process.platform === 'darwin'
-      ? spawn('/bin/bash', [join(process.resourcesPath, 'apply-update.sh'), ...args], {
-          detached: true,
-          stdio: 'ignore'
-        })
-      : spawn(join(process.resourcesPath, 'apply-update.cmd'), args, {
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: true,
-          shell: true
-        })
+async function spawnHelper(relaunch: boolean): Promise<void> {
+  const marker = await readMarker()
+  if (!marker) throw new Error('Missing update marker')
+  let child: ReturnType<typeof spawn>
+  if (process.platform === 'win32') {
+    // Persist the attempt before launching. A missing or interrupted helper must
+    // let the installed app open next time instead of looping at every startup.
+    await writeFile(failurePath(), `${marker.sha256}\nThe update did not finish. Please retry.`, 'utf8')
+    // Cloud updates replace app.asar only. Extract the helper from that archive
+    // so existing installations also receive fixes to the updater itself.
+    const helper = join(updateDir(), 'apply-update.ps1')
+    await writeFile(helper, windowsHelper, 'utf8')
+    child = spawn(
+      join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helper],
+      {
+        stdio: 'ignore',
+        windowsHide: true,
+        // Windows processes survive their parent without DETACHED_PROCESS,
+        // which can create the visible black console shown during updates.
+        detached: false,
+        env: {
+          ...process.env,
+          KOOYAI_UPDATE_PENDING: pendingAsar(),
+          KOOYAI_UPDATE_TARGET: join(process.resourcesPath, 'app.asar'),
+          KOOYAI_UPDATE_MARKER: markerPath(),
+          KOOYAI_UPDATE_FAILURE: failurePath(),
+          KOOYAI_UPDATE_SHA256: marker.sha256,
+          KOOYAI_UPDATE_PID: String(process.pid),
+          KOOYAI_UPDATE_RELAUNCH: relaunch ? '1' : '0',
+          KOOYAI_UPDATE_EXE: process.execPath
+        }
+      }
+    )
+  } else {
+    const args = [
+      pendingAsar(),
+      join(process.resourcesPath, 'app.asar'),
+      markerPath(),
+      relaunch ? '1' : '0',
+      process.execPath
+    ]
+    child = spawn('/bin/bash', [join(process.resourcesPath, 'apply-update.sh'), ...args], {
+      detached: true,
+      stdio: 'ignore'
+    })
+  }
+  await new Promise<void>((resolve, reject) => {
+    child.once('spawn', resolve)
+    child.once('error', reject)
+  })
   child.unref()
 }
 
@@ -98,13 +139,29 @@ export async function pendingUpdateReady(): Promise<boolean> {
     await rm(pendingAsar(), { force: true })
     return false
   }
+  if (marker.channel && marker.channel !== updateChannel()) return false
+  try {
+    if ((await readFile(failurePath(), 'utf8')).split('\n')[0] === marker.sha256) return false
+  } catch {
+    // No previous failed attempt.
+  }
+  try {
+    if (await sha256(pendingAsar()) !== marker.sha256) return false
+  } catch {
+    return false
+  }
   return true
 }
 
 // Returns true when this process is exiting so the helper can swap in the downloaded program.
 export async function applyPendingUpdate(relaunch: boolean): Promise<boolean> {
-  if (!(await pendingUpdateReady())) return false
-  spawnHelper(relaunch)
+  try {
+    if (!(await pendingUpdateReady())) return false
+    await spawnHelper(relaunch)
+  } catch {
+    // Keep running the installed app if the OS cannot launch its updater.
+    return false
+  }
   app.exit(0)
   return true
 }
@@ -152,9 +209,10 @@ export function installUpdateHooks(companyDatabaseUri: () => Promise<string>): v
     event.preventDefault()
     applying = true
     void pendingUpdateReady()
-      .then((ready) => {
-        if (ready) spawnHelper(false)
+      .then(async (ready) => {
+        if (ready) await spawnHelper(false)
       })
+      .catch(() => undefined)
       .finally(() => {
         app.exit(0)
       })
@@ -222,9 +280,19 @@ export async function downloadAvailableUpdate(
     }
     knownAvailable = release.version
     const marker = await readMarker()
-    if (!(marker?.version === release.version && marker.sha256 === release.sha256)) {
+    let validDownload = false
+    if (marker?.version === release.version && marker.sha256 === release.sha256) {
+      try {
+        validDownload = await sha256(pendingAsar()) === release.sha256
+      } catch {
+        // The staged file may have been removed or damaged since the download.
+      }
+    }
+    if (!validDownload) {
       await downloadRelease(uri, release)
     }
+    // The user explicitly requested a retry; automatic startup never clears this.
+    await rm(failurePath(), { force: true })
     const status = await getUpdateStatus()
     if (!status.ready) return { ok: false, message: 'ดาวน์โหลดรุ่นใหม่ไม่สำเร็จ ลองอีกครั้งเมื่อเน็ตดี' }
     return { ok: true }

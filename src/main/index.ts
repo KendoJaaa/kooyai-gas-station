@@ -7,7 +7,7 @@ import { emptyStore, isAppStore, migrateStore, type AppStore } from '../shared/s
 import { mergeStores, touchStore } from '../shared/sync'
 import { pruneOldDays } from '../shared/retention'
 import { isSalesTaxPeriod, type SalesTaxPeriod } from '../shared/taxPeriod'
-import { applyPendingUpdate, checkForUpdate, downloadAvailableUpdate, getUpdateStatus, installUpdateHooks } from './updates'
+import { checkForUpdate, downloadAvailableUpdate, getUpdateStatus, installUpdateHooks } from './updates'
 import type { AppUpdateStatus, PdfResult, SaveResult, SyncSettings, UpdateInstallResult } from '../shared/types'
 import { pullRemoteStore, pushRemoteStore } from './mongo'
 import { companyDatabaseUri } from './companyDb'
@@ -270,9 +270,9 @@ async function exportPdf(kind: 'daily' | 'tax' = 'daily', period?: SalesTaxPerio
   }
 }
 
-void applyPendingUpdate(true).then((updating) => {
-  if (updating) return
-  installUpdateHooks(companyDatabaseUri)
+// Opening the app must never depend on installing a pending update. Updates
+// are attempted only after the user closes their working session.
+installUpdateHooks(companyDatabaseUri)
 
   app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.kooyai.banthukpum')
@@ -380,4 +380,3 @@ void applyPendingUpdate(true).then((updating) => {
       app.quit()
     }
   })
-})

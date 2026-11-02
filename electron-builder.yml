@@ -37,6 +37,8 @@ win:
     - nsis
     - zip
 nsis:
+  guid: 3761aeb8-f483-5a64-a1f9-f9ce5194a967
+  deleteAppDataOnUninstall: false
   include: build/installer.nsh
   artifactName: ปั้ม.${ext}
   shortcutName: ${productName}
