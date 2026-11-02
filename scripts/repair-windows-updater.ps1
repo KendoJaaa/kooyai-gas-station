@@ -47,7 +47,8 @@ $running = @(Get-Process -Name banthukpum -ErrorAction SilentlyContinue | Where-
 if ($running.Count -gt 0) { throw 'Restart Windows, then run this repair before opening Pum.' }
 
 $source = Split-Path -Parent $MyInvocation.MyCommand.Path
-foreach ($name in @('apply-update.cmd', 'apply-update.ps1')) {
+# Install the PowerShell helper before the CMD entry point that invokes it.
+foreach ($name in @('apply-update.ps1', 'apply-update.cmd')) {
     $target = [System.IO.Path]::Combine($resources, $name)
     if ([System.IO.File]::Exists($target) -and ![System.IO.File]::Exists($target + '.before-repair')) {
         [System.IO.File]::Copy($target, $target + '.before-repair')
