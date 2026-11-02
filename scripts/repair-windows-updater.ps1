@@ -5,7 +5,9 @@ $ErrorActionPreference = 'Stop'
 
 if (!$AppExe) {
     $candidates = @()
-    $key = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\3761aeb8-f483-5a64-a1f9-f9ce5194a967'
+    # electron-builder stores InstallLocation under Software\<GUID>, separately
+    # from the Windows uninstall entry. Read the installation record first.
+    $key = 'Software\3761aeb8-f483-5a64-a1f9-f9ce5194a967'
     foreach ($hive in @('HKCU:', 'HKLM:')) {
         $entry = Get-ItemProperty -LiteralPath ($hive + '\' + $key) -ErrorAction SilentlyContinue
         if ($entry -and $entry.InstallLocation) {

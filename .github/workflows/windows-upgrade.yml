@@ -3,8 +3,12 @@ name: Windows installation and OTA updates
 on:
   pull_request:
   push:
-    branches: [main, 'codex/**']
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: windows-upgrade-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

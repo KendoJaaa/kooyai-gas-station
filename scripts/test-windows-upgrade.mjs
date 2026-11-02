@@ -147,7 +147,13 @@ const store = emptyStore(today)
 store.config = structuredClone(DEFAULT_STATION)
 store.identity.stationName = 'Windows update test station'
 store.setupCompleted = true
-store.days[today] = emptyDay()
+for (let offset = 0; offset < 3; offset++) {
+  const date = new Date()
+  date.setDate(date.getDate() - offset)
+  const day = emptyDay()
+  day.meters = Object.fromEntries(store.config.machines.map((machine) => [machine.id, machine.openingMeter + (3 - offset) * 100]))
+  store.days[date.toLocaleDateString('en-CA')] = day
+}
 const dataDir = join(appData, 'แบบบันทึกสถานีน้ำมัน')
 await mkdir(dataDir, { recursive: true })
 const stationFile = join(dataDir, 'station.json')
@@ -163,9 +169,12 @@ try {
   await app.close()
 
   // Repair the installed updater directly, without NSIS or identity changes.
+  const companyFile = join(installDir, 'resources', 'company-db.json')
+  const companyBeforeRepair = await readFile(companyFile)
   await run(process.execPath, ['scripts/package-updater-repair.mjs', '--no-desktop'])
-  await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', resolve('dist/Pum-Updater-Repair/repair-windows-updater.ps1'), '-AppExe', exe, '-NoLaunch'])
+  await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', resolve('dist/Pum-Updater-Repair/repair-windows-updater.ps1'), '-NoLaunch'])
   assert.deepEqual(JSON.parse(await readFile(stationFile, 'utf8')).days, initial.days)
+  assert.deepEqual(await readFile(companyFile), companyBeforeRepair)
   await mkdir(updateDir, { recursive: true })
 
   // A corrupt pending update must not block startup or damage the installed app.

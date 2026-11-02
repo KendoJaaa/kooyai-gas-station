@@ -173,6 +173,9 @@ for (const corrupt of [false, true]) {
     if (corrupt) {
       assert.equal(await readFile(target, 'utf8'), 'old app')
       assert.ok((await readFile(join(f.directory, 'failed.txt'), 'utf8')).includes('SHA-256'))
+      // Installed legacy apps ignore failed.txt and look only at ready.json.
+      await assert.rejects(readFile(join(f.directory, 'ready.json')), { code: 'ENOENT' })
+      assert.ok(await readFile(join(f.directory, 'ready.json.failed'), 'utf8'))
       assert.equal(await f.api.pendingUpdateReady(), false)
     } else {
       assert.deepEqual(await readFile(target), archive)
