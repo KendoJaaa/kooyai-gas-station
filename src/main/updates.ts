@@ -92,27 +92,31 @@ async function spawnHelper(relaunch: boolean): Promise<void> {
     const helper = join(updateDir(), 'apply-update.ps1')
     await writeFile(helper, windowsHelper, 'utf8')
     log = await open(join(updateDir(), 'helper.log'), 'a')
+    const powershell = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    const workerCommand = [
+      powershell, '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper,
+      '-PendingPath', pendingAsar(), '-TargetPath', join(process.resourcesPath, 'app.asar'),
+      '-MarkerPath', markerPath(), '-Relaunch', relaunch ? '1' : '0',
+      '-AppExe', process.execPath, '-WaitForProcessId', String(process.pid)
+    ].map((argument) => `"${argument}"`).join(' ')
+    // A detached child can still belong to an enclosing Windows job. WMI creates
+    // the worker independently, so closing this app cannot terminate its updater.
+    // Single-quote escaping and UTF-16 encoding keep paths out of a CMD shell.
+    const broker = [
+      "$ErrorActionPreference = 'Stop'",
+      "$startup = ([wmiclass]'Win32_ProcessStartup').CreateInstance()",
+      '$startup.ShowWindow = 0',
+      `$result = ([wmiclass]'Win32_Process').Create('${workerCommand.replace(/'/g, "''")}', $null, $startup)`,
+      'if ($result.ReturnValue -ne 0) { throw "Updater launch failed: $($result.ReturnValue)" }'
+    ].join('; ')
     child = spawn(
-      join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helper],
+      powershell,
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(broker, 'utf16le').toString('base64')],
       {
         stdio: ['ignore', log.fd, log.fd],
         windowsHide: true,
-        // libuv places attached Windows children in a job that is killed when
-        // this process exits. The updater must survive that exit. Launch it
-        // directly with PowerShell's hidden window option, without a CMD shell.
-        detached: true,
-        env: {
-          ...process.env,
-          KOOYAI_UPDATE_PENDING: pendingAsar(),
-          KOOYAI_UPDATE_TARGET: join(process.resourcesPath, 'app.asar'),
-          KOOYAI_UPDATE_MARKER: markerPath(),
-          KOOYAI_UPDATE_FAILURE: failurePath(),
-          KOOYAI_UPDATE_SHA256: marker.sha256,
-          KOOYAI_UPDATE_PID: String(process.pid),
-          KOOYAI_UPDATE_RELAUNCH: relaunch ? '1' : '0',
-          KOOYAI_UPDATE_EXE: process.execPath
-        }
+        // Wait for this short-lived broker to confirm worker creation.
+        detached: false
       }
     )
   } else {
@@ -130,8 +134,21 @@ async function spawnHelper(relaunch: boolean): Promise<void> {
   }
   try {
     await new Promise<void>((resolve, reject) => {
-      child.once('spawn', resolve)
-      child.once('error', reject)
+      if (process.platform !== 'win32') {
+        child.once('spawn', resolve)
+        child.once('error', reject)
+        return
+      }
+      const timer = setTimeout(() => {
+        child.kill()
+        reject(new Error('Updater launcher timed out'))
+      }, 15_000)
+      child.once('error', (error) => { clearTimeout(timer); reject(error) })
+      child.once('exit', (code) => {
+        clearTimeout(timer)
+        if (code === 0) resolve()
+        else reject(new Error(`Updater launcher exited with ${code}; see helper.log`))
+      })
     })
   } finally {
     await log?.close()

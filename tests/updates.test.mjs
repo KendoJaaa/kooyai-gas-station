@@ -64,7 +64,10 @@ async function fixture(t, { spawnError = false } = {}) {
         spawns.push(args)
         const child = new EventEmitter()
         child.unref = () => {}
-        queueMicrotask(() => child.emit(spawnError ? 'error' : 'spawn', new Error('Launch failed')))
+        queueMicrotask(() => {
+          if (spawnError) child.emit('error', new Error('Launch failed'))
+          else { child.emit('spawn'); child.emit('exit', 0) }
+        })
         return child
       } }
       return require(name)
@@ -73,7 +76,7 @@ async function fixture(t, { spawnError = false } = {}) {
       platform: 'win32', versions: { electron: '39.8.10' }, env: { SystemRoot: 'C:\\Windows' },
       pid: process.pid, resourcesPath: join(root, 'installed app'), execPath: join(root, 'banthukpum.exe')
     },
-    Buffer, URL, console
+    Buffer, URL, console, setTimeout, clearTimeout
   })
   return { api: module.exports, root, directory, marker, exits, spawns }
 }
@@ -105,12 +108,15 @@ test('the helper is delivered inside app updates and receives paths without shel
   assert.ok((await readFile(join(f.directory, 'failed.txt'), 'utf8')).startsWith(hash))
   const [command, args, options] = f.spawns[0]
   assert.ok(command.endsWith('powershell.exe'))
-  assert.equal(args.at(-1), join(f.directory, 'apply-update.ps1'))
+  assert.ok(args.includes('-EncodedCommand'))
+  const broker = Buffer.from(args.at(-1), 'base64').toString('utf16le')
+  assert.ok(broker.includes("[wmiclass]'Win32_Process'"))
+  assert.ok(broker.includes(join(f.directory, 'apply-update.ps1')))
   assert.equal(options.shell, undefined)
   assert.equal(options.windowsHide, true)
-  assert.equal(options.detached, true)
-  assert.equal(options.env.KOOYAI_UPDATE_PID, String(process.pid))
-  assert.equal(options.env.KOOYAI_UPDATE_PENDING, join(f.directory, 'app.asar'))
+  assert.equal(options.detached, false)
+  assert.ok(broker.includes(`"-WaitForProcessId" "${process.pid}"`))
+  assert.ok(broker.includes(join(f.directory, 'app.asar')))
   assert.deepEqual(f.exits, [0])
   // Even if the helper never executes, the next startup does not exit again.
   assert.equal(await f.api.applyPendingUpdate(true), false)
@@ -150,7 +156,7 @@ test('on Windows the production helper survives the app process exiting', {
     const realRequire = createRequire(${JSON.stringify(resolve('package.json'))});
     const moduleValue = {exports:{}};
     runInNewContext(${JSON.stringify(code)}, {
-      module: moduleValue, exports: moduleValue.exports, Buffer, URL, console,
+      module: moduleValue, exports: moduleValue.exports, Buffer, URL, console, setTimeout, clearTimeout,
       require(name) {
         if (name === 'original-fs') return require('node:fs');
         if (name === 'electron') return {app:{

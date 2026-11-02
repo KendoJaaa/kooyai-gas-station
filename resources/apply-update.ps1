@@ -4,7 +4,8 @@ param(
     [string]$TargetPath,
     [string]$MarkerPath,
     [string]$Relaunch,
-    [string]$AppExe
+    [string]$AppExe,
+    [int]$WaitForProcessId = 0
 )
 $ErrorActionPreference = 'Stop'
 $pending = $env:KOOYAI_UPDATE_PENDING
@@ -47,7 +48,9 @@ try {
     }
     # Wait for the app that requested this update, not every process with its name.
     $parentProcess = $null
-    if (!$PendingPath -and $env:KOOYAI_UPDATE_PID) {
+    if ($WaitForProcessId -gt 0) {
+        $parentProcess = Get-Process -Id $WaitForProcessId -ErrorAction SilentlyContinue
+    } elseif (!$PendingPath -and $env:KOOYAI_UPDATE_PID) {
         $parentProcess = Get-Process -Id ([int]$env:KOOYAI_UPDATE_PID) -ErrorAction SilentlyContinue
     }
     if ($parentProcess -and !$parentProcess.WaitForExit(30000)) {
