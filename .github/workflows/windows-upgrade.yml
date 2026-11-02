@@ -42,8 +42,8 @@ jobs:
           node node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json --composite false
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node node_modules/typescript/bin/tsc --noEmit -p tsconfig.web.json --composite false
-      - name: Updater regression tests on Windows PowerShell
-        run: node --test tests/updates.test.mjs tests/release-validation.test.mjs tests/repair.test.mjs
+      - name: Updater and report regression tests on Windows
+        run: node --test tests/updates.test.mjs tests/release-validation.test.mjs tests/repair.test.mjs tests/reports.test.mjs
       - name: Build the correct runtime bundle
         run: |
           if ($env:KOOYAI_TEST_TARGET -eq 'win7') { $env:ELECTRON_MAJOR_VER = '22' }

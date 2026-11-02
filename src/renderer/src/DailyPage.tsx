@@ -8,6 +8,7 @@ import {
   defaultPrices,
   emptyDay,
   meterHistory,
+  varianceStartEditable,
   type DayRecord
 } from '../../shared/reports'
 import { unusedNozzleMeters, type DayReadings } from '../../shared/station'
@@ -99,12 +100,9 @@ function broughtDraftsFor(
   date: string,
   rec: DayRecord
 ): Record<string, string> {
+  if (!varianceStartEditable(date, store.days)) return {}
   const existing = draftsFromReadings(rec.varianceStarts)
   if (Object.keys(existing).length > 0) return existing
-  const hasPriorSameMonth = Object.keys(store.days).some(
-    (key) => key < date && key.slice(0, 7) === date.slice(0, 7)
-  )
-  if (hasPriorSameMonth) return {}
   const hasEarlierMonth = Object.keys(store.days).some((key) => key.slice(0, 7) < date.slice(0, 7))
   if (hasEarlierMonth) return {}
   return Object.fromEntries(

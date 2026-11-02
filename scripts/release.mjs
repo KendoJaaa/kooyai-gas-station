@@ -7,7 +7,7 @@ import { withCompanyDb } from './atlas.mjs'
 import { verifyWindowsCi } from './verify-windows-ci.mjs'
 
 // One command for a release: next version, Windows + Mac on the current Electron,
-// Windows 7 on Electron 22, each update slot gets its own app.asar.
+// Windows 7 on Electron 22. Only the two Windows archives are published to Atlas.
 // The folder name contains ":", so tools are run by file path, not from node_modules/.bin.
 
 const require = createRequire(import.meta.url)
@@ -15,6 +15,11 @@ const { extractFile } = require('@electron/asar')
 
 const RELEASE_DIR = 'dist/release'
 const DESKTOP = join(homedir(), 'Desktop')
+const options = process.argv.slice(2)
+if (options.some((option) => option !== '--windows-only')) {
+  throw new Error('usage: node scripts/release.mjs [--windows-only]')
+}
+const windowsOnly = options.includes('--windows-only')
 
 function run(args, extraEnv = {}) {
   const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false', ...extraEnv }
@@ -92,7 +97,7 @@ await verifyWindowsCi()
 const version = await nextVersion()
 setVersion(version)
 mkdirSync(RELEASE_DIR, { recursive: true })
-console.log(`\nRelease ${version}: Windows, Windows 7, Mac\n`)
+console.log(`\nRelease ${version}: Windows, Windows 7${windowsOnly ? '' : ', Mac'}\n`)
 
 await run(['node_modules/typescript/bin/tsc', '--noEmit', '-p', 'tsconfig.node.json', '--composite', 'false'])
 await run(['node_modules/typescript/bin/tsc', '--noEmit', '-p', 'tsconfig.web.json', '--composite', 'false'])
@@ -101,26 +106,28 @@ await run(['node_modules/electron-vite/bin/electron-vite.js', 'build'])
 await run(['node_modules/electron-builder/cli.js', '--win', '--x64'])
 const asars = { win: keepAsar('dist/win-unpacked/resources/app.asar', 'win', version) }
 
-await run(['node_modules/electron-builder/cli.js', '--mac', 'dmg'])
-asars.mac = keepAsar(
-  join('dist/mac-arm64', `${productName()}.app`, 'Contents/Resources/app.asar'),
-  'mac',
-  version
-)
+if (!windowsOnly) {
+  await run(['node_modules/electron-builder/cli.js', '--mac', 'dmg'])
+  keepAsar(
+    join('dist/mac-arm64', `${productName()}.app`, 'Contents/Resources/app.asar'),
+    'mac',
+    version
+  )
+}
 
 await run(['node_modules/electron-vite/bin/electron-vite.js', 'build'], { ELECTRON_MAJOR_VER: '22' })
 await run(['node_modules/electron-builder/cli.js', '--win', '--config', 'electron-builder.win7.yml', '--ia32'])
 asars.win7 = keepAsar('dist/win-ia32-unpacked/resources/app.asar', 'win7', version)
 
-await run(['scripts/publish-update.mjs', '--all', asars.win, asars.win7, asars.mac])
+await run(['scripts/publish-update.mjs', '--all', asars.win, asars.win7])
 
 const installers = [
   ['dist/ปั้ม.exe', 'Pum.exe'],
-  ['dist/ปั้ม-Windows7-ia32.exe', 'Pum-Windows7-32bit.exe'],
-  ['dist/ปั้ม-Mac.dmg', 'Pum-Mac.dmg']
+  ['dist/ปั้ม-Windows7-ia32.exe', 'Pum-Windows7-32bit.exe']
 ]
+if (!windowsOnly) installers.push(['dist/ปั้ม-Mac.dmg', 'Pum-Mac.dmg'])
 for (const [from, name] of installers) copyFileSync(from, join(DESKTOP, name))
 
-console.log(`\nReleased ${version} to win, win7, and mac.`)
+console.log(`\nReleased ${version} to win and win7.${windowsOnly ? '' : ' The Mac installer is available locally for manual distribution.'}`)
 console.log(`Installers on the Desktop: ${installers.map(([, name]) => name).join(', ')}`)
 console.log('Commit and push package.json with this version.')

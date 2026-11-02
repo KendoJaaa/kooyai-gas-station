@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, readFileSync } from 'node:fs'
+import { createReadStream, readFileSync, statSync } from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 import { createRequire } from 'node:module'
 import { GridFSBucket } from 'mongodb'
 import { RELEASE_CHANNELS, withCompanyDb } from './atlas.mjs'
+import { assertAtlasCapacity, readAtlasStorage } from './release-policy.mjs'
 
 const require = createRequire(import.meta.url)
 const { extractFile } = require('@electron/asar')
@@ -11,7 +12,7 @@ const version = JSON.parse(readFileSync('package.json', 'utf8')).version
 const [mode, ...paths] = process.argv.slice(2)
 const channels = mode === '--all' ? RELEASE_CHANNELS : [mode]
 if (channels.some((channel) => !RELEASE_CHANNELS.includes(channel)) || paths.length !== channels.length) {
-  throw new Error('usage: node scripts/publish-update.mjs <win|win7|mac> <app.asar> OR --all <win.asar> <win7.asar> <mac.asar>')
+  throw new Error('usage: node scripts/publish-update.mjs <win|win7> <app.asar> OR --all <win.asar> <win7.asar>. Mac updates are not stored in Atlas.')
 }
 
 function compareVersions(left, right) {
@@ -37,7 +38,7 @@ const artifacts = []
 for (const [index, path] of paths.entries()) {
   const inside = JSON.parse(extractFile(path, 'package.json').toString())
   if (inside.version !== version) throw new Error(`${path} has version ${inside.version}, expected ${version}`)
-  artifacts.push({ channel: channels[index], path, sha256: await digest(createReadStream(path)) })
+  artifacts.push({ channel: channels[index], path, length: statSync(path).size, sha256: await digest(createReadStream(path)) })
 }
 
 await withCompanyDb(async (db, client) => {
@@ -50,12 +51,22 @@ await withCompanyDb(async (db, client) => {
     }
   }
 
-  const staged = []
+  const uploads = []
   for (const artifact of artifacts) {
     const filename = `${artifact.channel}-${version}.asar`
-    let stored = await db.collection('app_updates.files').findOne({
+    const stored = await db.collection('app_updates.files').findOne({
       filename, 'metadata.sha256': artifact.sha256
     })
+    uploads.push({ ...artifact, filename, stored })
+  }
+  const stats = await readAtlasStorage(client)
+  const uploadBytes = uploads.reduce((sum, artifact) => sum + (artifact.stored ? 0 : artifact.length), 0)
+  assertAtlasCapacity(stats, uploadBytes)
+
+  const staged = []
+  for (const artifact of uploads) {
+    const { filename } = artifact
+    let stored = artifact.stored
     if (!stored) {
       const upload = bucket.openUploadStream(filename, {
         metadata: { channel: artifact.channel, version, sha256: artifact.sha256 }

@@ -22,7 +22,7 @@ export interface Tank {
   fuelTypeId: string
   tankNo: number
   openingStock: number
-  /** Paper ส่วน ข row 9, used only the first month this app is used. */
+  /** Paper ส่วน ข row 9, used when starting mid-month; resets on the first of a month. */
   openingVariance?: number
 }
 

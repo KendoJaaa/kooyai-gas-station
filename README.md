@@ -83,7 +83,9 @@ Do not change `appId`, `executableName`, the NSIS GUID, or the user-data path to
 2. Keep the existing production `resources/company-db.json` available locally and gitignored.
 3. Run `node scripts/release.mjs` from a clean checkout.
 
-The release command verifies the Windows results before bumping the version, building all three targets, verifying upload hashes, and switching the three Atlas channels together. It retains old GridFS files and copies `Pum.exe`, `Pum-Windows7-32bit.exe`, and `Pum-Mac.dmg` to the Desktop. Commit the resulting version bump after release. It does not publish station updates through GitHub Releases.
+Use `node scripts/release.mjs --windows-only` when only the current Windows and Windows 7 ia32 installers are requested.
+
+The release command verifies the Windows results before bumping the version and building all three targets. It checks Atlas free-tier capacity before uploading, verifies upload hashes, and switches the `win` and `win7` channels together. Mac archives are not stored in MongoDB; Mac installers are distributed manually. It retains previous Windows GridFS files and copies `Pum.exe`, `Pum-Windows7-32bit.exe`, and `Pum-Mac.dmg` to the Desktop. Commit the resulting version bump after release. It does not publish station updates through GitHub Releases.
 
 Windows updates are attempted on close, never before opening the app. The updater verifies raw archive bytes using Electron's `original-fs`, uses bounded waits and replacement retries, preserves `app.asar.previous`, and prevents failed downloads from repeatedly hijacking startup. This does not provide automatic rollback for arbitrary errors inside a newly installed application; retain the previous archive and keep the Windows acceptance checks mandatory.
 

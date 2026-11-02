@@ -3,7 +3,7 @@ import { MongoClient } from 'mongodb'
 
 const atlas = JSON.parse(readFileSync(new URL('../src/main/atlas.json', import.meta.url), 'utf8'))
 
-export const RELEASE_CHANNELS = ['win', 'win7', 'mac']
+export { RELEASE_CHANNELS } from './release-policy.mjs'
 
 // Same rewrite as directMongoUri in src/main/mongo.ts: station DNS refuses SRV lookups.
 function directMongoUri(uri) {

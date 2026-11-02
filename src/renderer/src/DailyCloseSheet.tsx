@@ -177,11 +177,15 @@ export function DailyCloseSheet({
             ))}
           </SimpleGrid>
         </Paper>
-      ) : firstMonthDate ? (
+      ) : firstMonthDate && !firstMonthDate.endsWith('-01') ? (
         <Text size="sm" c="dimmed">
           ผลต่างสะสมยกมาของเดือนนี้แก้ได้ที่{periodLabel(firstMonthDate)}
         </Text>
-      ) : null}
+      ) : (
+        <Text size="sm" c="dimmed">
+          ผลต่างสะสมยกมาเริ่มที่ 0 ทุกต้นเดือน แล้วสะสมผลต่างของวันก่อนหน้าเฉพาะเดือนนี้
+        </Text>
+      )}
 
       <Paper withBorder p="md" radius="md">
         <Title order={4} mb="xs">
