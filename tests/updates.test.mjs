@@ -170,7 +170,10 @@ test('on Windows the production helper survives the app process exiting', {
   while (Date.now() < deadline && !(await readFile(target)).equals(archive)) {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 100))
   }
-  assert.deepEqual(await readFile(target), archive, 'the detached updater must complete after its parent exits')
+  const diagnostic = await Promise.all(['helper.log', 'failed.txt'].map(async (name) => {
+    try { return `${name}: ${await readFile(join(f.directory, name), 'utf8')}` } catch { return `${name}: absent` }
+  }))
+  assert.deepEqual(await readFile(target), archive, `the detached updater must complete after its parent exits\n${diagnostic.join('\n')}`)
   assert.equal(await readFile(`${target}.previous`, 'utf8'), 'old app')
 })
 

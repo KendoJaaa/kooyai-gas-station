@@ -12,7 +12,7 @@ import type { AppUpdateStatus, UpdateInstallResult } from '../shared/types'
 import windowsHelper from '../../resources/apply-update.ps1?raw'
 
 const RELEASES = 'app_releases'
-const { mkdir, readFile, rename, rm, writeFile } = updateFs
+const { mkdir, open, readFile, rename, rm, writeFile } = updateFs
 
 type UpdateChannel = 'win' | 'win7' | 'mac'
 
@@ -82,6 +82,7 @@ async function spawnHelper(relaunch: boolean): Promise<void> {
   const marker = await readMarker()
   if (!marker) throw new Error('Missing update marker')
   let child: ReturnType<typeof spawn>
+  let log: Awaited<ReturnType<typeof open>> | undefined
   if (process.platform === 'win32') {
     // Persist the attempt before launching. A missing or interrupted helper must
     // let the installed app open next time instead of looping at every startup.
@@ -90,11 +91,12 @@ async function spawnHelper(relaunch: boolean): Promise<void> {
     // so existing installations also receive fixes to the updater itself.
     const helper = join(updateDir(), 'apply-update.ps1')
     await writeFile(helper, windowsHelper, 'utf8')
+    log = await open(join(updateDir(), 'helper.log'), 'a')
     child = spawn(
       join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helper],
       {
-        stdio: 'ignore',
+        stdio: ['ignore', log.fd, log.fd],
         windowsHide: true,
         // libuv places attached Windows children in a job that is killed when
         // this process exits. The updater must survive that exit. Launch it
@@ -126,10 +128,14 @@ async function spawnHelper(relaunch: boolean): Promise<void> {
       stdio: 'ignore'
     })
   }
-  await new Promise<void>((resolve, reject) => {
-    child.once('spawn', resolve)
-    child.once('error', reject)
-  })
+  try {
+    await new Promise<void>((resolve, reject) => {
+      child.once('spawn', resolve)
+      child.once('error', reject)
+    })
+  } finally {
+    await log?.close()
+  }
   child.unref()
 }
 

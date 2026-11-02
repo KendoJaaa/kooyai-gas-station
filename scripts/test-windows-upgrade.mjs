@@ -217,5 +217,10 @@ try {
     await writeFile(join(screenshots, 'updater-failure.txt'), failure)
     console.error(`Updater failure: ${failure}`)
   } catch { /* no helper failure record */ }
+  try {
+    const log = await readFile(join(updateDir, 'helper.log'), 'utf8')
+    await writeFile(join(screenshots, 'helper.log'), log)
+    console.error(`Helper log: ${log}`)
+  } catch { /* helper did not create a log */ }
   throw error
 }
