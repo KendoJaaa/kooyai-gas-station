@@ -24,9 +24,14 @@ try {
     & ([IO.Path]::Combine($folder, 'repair-windows-updater.ps1'))
     exit $LASTEXITCODE
 } catch {
+    try {
+        $support = [IO.Path]::Combine([Environment]::GetFolderPath('LocalApplicationData'), 'Pum-Repair')
+        [IO.Directory]::CreateDirectory($support) > $null
+        [IO.File]::WriteAllText([IO.Path]::Combine($support, 'bootstrap-error.txt'), $_.Exception.ToString(), [Text.Encoding]::UTF8)
+    } catch {}
     if (!$quiet) {
         Add-Type -AssemblyName System.Windows.Forms
-        [Windows.Forms.MessageBox]::Show('ไฟล์ซ่อมเปิดไม่ได้หรือดาวน์โหลดมาไม่ครบ กรุณาขอไฟล์ซ่อมใหม่จากผู้ดูแล รหัส B01', 'ซ่อมโปรแกรมบันทึกปั้ม', 'OK', 'Warning') > $null
+        [Windows.Forms.MessageBox]::Show('เปิดไฟล์ซ่อมไม่สำเร็จ กรุณาส่งภาพข้อความนี้ให้ผู้ดูแล รหัส B01', 'ซ่อมโปรแกรมบันทึกปั้ม', 'OK', 'Warning') > $null
     }
     [Console]::Error.WriteLine('Repair bootstrap failed: ' + $_.Exception.Message)
     exit 1

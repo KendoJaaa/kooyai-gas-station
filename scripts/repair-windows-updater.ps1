@@ -52,7 +52,12 @@ function RunningApp($path) {
     return $false
 }
 function SwapFile($from, $to) {
-    if ([IO.File]::Exists($to)) { [IO.File]::Replace($from, $to, $null) }
+    if ([IO.File]::Exists($to)) {
+        # PowerShell can bind $null to an empty string for this .NET overload.
+        # A real backup path works on both PowerShell 2.0 and later versions.
+        $displaced = [IO.Path]::Combine([IO.Path]::GetDirectoryName($from), [IO.Path]::GetFileName($to) + '.swapped-' + [Guid]::NewGuid().ToString('N'))
+        [IO.File]::Replace($from, $to, $displaced)
+    }
     else { [IO.File]::Move($from, $to) }
 }
 function IsAdmin {
@@ -174,6 +179,7 @@ try {
             if (RunningApp $AppExe) { throw 'Pum was opened during repair.' }
             SwapFile ([IO.Path]::Combine($stage, $name + '.new')) ([IO.Path]::Combine($resources, $name))
             $changed += $name
+            Log ('Committed ' + $name)
         }
         foreach ($name in @('apply-update.ps1', 'apply-update.cmd')) {
             if ((FileHash ([IO.Path]::Combine($source, $name))) -ne (FileHash ([IO.Path]::Combine($resources, $name)))) { throw 'Installed helper verification failed.' }

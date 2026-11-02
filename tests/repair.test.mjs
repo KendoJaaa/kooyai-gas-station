@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, readFile, writeFile, copyFile, rm, access } from 'node:
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 
 const windows = process.platform === 'win32'
 const ps = process.env.KOOYAI_TEST_POWERSHELL || 'powershell.exe'
@@ -36,7 +37,17 @@ async function fixture(t) {
     if (windows) spawnSync('attrib.exe', ['-R', join(resources, 'apply-update.cmd')])
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   })
-  const invoke = () => run(['-File', join(source, 'repair-windows-updater.ps1'), '-AppExe', exe, '-AppDataPath', appData, '-ResultRoot', output, '-Quiet', '-NoLaunch'])
+  const invoke = () => {
+    const repair = run(['-File', join(source, 'repair-windows-updater.ps1'), '-AppExe', exe, '-AppDataPath', appData, '-ResultRoot', output, '-Quiet', '-NoLaunch'])
+    if (repair.status !== 0) {
+      try {
+        const status = readFileSync(join(output, 'last-result.txt'), 'utf8').replace(/^\uFEFF/, '')
+        const log = status.split(/\r?\n/).find((line) => line.startsWith('log='))?.slice(4)
+        repair.stderr += '\n' + status + '\n' + (log ? readFileSync(log, 'utf8') : '')
+      } catch {}
+    }
+    return repair
+  }
   const unchanged = async () => {
     assert.equal(await readFile(join(resources, 'apply-update.cmd'), 'utf8'), 'original cmd helper')
     assert.equal(await readFile(join(resources, 'apply-update.ps1'), 'utf8'), 'original powershell helper')
@@ -105,6 +116,8 @@ test('a second-file lock restores the first helper instead of leaving a partial 
     const repair = f.invoke()
     assert.equal(repair.status, 1, repair.stderr)
     assert.equal((await result(join(f.output, 'last-result.txt'))).code, 'R06')
+    const status = await result(join(f.output, 'last-result.txt'))
+    assert.ok((await readFile(status.log, 'utf8')).includes('Committed apply-update.ps1'), 'the test must fail after the first real replacement')
     await f.unchanged()
     assert.equal(await exists(join(f.appData, 'kooyai-update')), false, 'the blocked startup marker stays quarantined')
   } finally {
