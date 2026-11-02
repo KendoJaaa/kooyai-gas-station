@@ -108,7 +108,7 @@ test('the helper is delivered inside app updates and receives paths without shel
   assert.equal(args.at(-1), join(f.directory, 'apply-update.ps1'))
   assert.equal(options.shell, undefined)
   assert.equal(options.windowsHide, true)
-  assert.equal(options.detached, false)
+  assert.equal(options.detached, true)
   assert.equal(options.env.KOOYAI_UPDATE_PID, String(process.pid))
   assert.equal(options.env.KOOYAI_UPDATE_PENDING, join(f.directory, 'app.asar'))
   assert.deepEqual(f.exits, [0])
@@ -135,6 +135,45 @@ test('explicit retry downloads a damaged cached archive again and clears the fai
 })
 
 const powershell = process.env.KOOYAI_TEST_POWERSHELL
+test('on Windows the production helper survives the app process exiting', {
+  skip: process.platform !== 'win32' && 'Requires Windows process/job semantics'
+}, async (t) => {
+  const f = await fixture(t)
+  const resources = join(f.root, 'installed app')
+  await mkdir(resources)
+  const target = join(resources, 'app.asar')
+  await writeFile(target, 'old app')
+  const parent = join(f.root, 'parent.cjs')
+  await writeFile(parent, `
+    const {createRequire} = require('node:module');
+    const {runInNewContext} = require('node:vm');
+    const realRequire = createRequire(${JSON.stringify(resolve('package.json'))});
+    const moduleValue = {exports:{}};
+    runInNewContext(${JSON.stringify(code)}, {
+      module: moduleValue, exports: moduleValue.exports, Buffer, URL, console,
+      require(name) {
+        if (name === 'original-fs') return require('node:fs');
+        if (name === 'electron') return {app:{
+          isPackaged:true, getPath:()=>${JSON.stringify(f.root)},
+          getVersion:()=> '1.1.11', exit:(value)=>process.exit(value)
+        }};
+        return realRequire(name);
+      },
+      process:{platform:process.platform, pid:process.pid, env:process.env,
+        versions:{electron:'39.8.10'}, resourcesPath:${JSON.stringify(resources)}, execPath:process.execPath}
+    });
+    moduleValue.exports.applyPendingUpdate(false).then(()=>process.exit(3)).catch(error=>{console.error(error);process.exit(4)});
+  `)
+  const result = spawnSync(process.execPath, [parent], { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(result.status, 0, result.stderr)
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline && !(await readFile(target)).equals(archive)) {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100))
+  }
+  assert.deepEqual(await readFile(target), archive, 'the detached updater must complete after its parent exits')
+  assert.equal(await readFile(`${target}.previous`, 'utf8'), 'old app')
+})
+
 test('the replacement helper accepts the already-installed updater argument format', {
   skip: !powershell && 'Set KOOYAI_TEST_POWERSHELL to run the real helper'
 }, async (t) => {

@@ -96,9 +96,10 @@ async function spawnHelper(relaunch: boolean): Promise<void> {
       {
         stdio: 'ignore',
         windowsHide: true,
-        // Windows processes survive their parent without DETACHED_PROCESS,
-        // which can create the visible black console shown during updates.
-        detached: false,
+        // libuv places attached Windows children in a job that is killed when
+        // this process exits. The updater must survive that exit. Launch it
+        // directly with PowerShell's hidden window option, without a CMD shell.
+        detached: true,
         env: {
           ...process.env,
           KOOYAI_UPDATE_PENDING: pendingAsar(),
