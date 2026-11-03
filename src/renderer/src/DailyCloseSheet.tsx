@@ -1,21 +1,19 @@
 import type { JSX, ReactNode } from 'react'
 import { Paper, SimpleGrid, Stack, Table, Text, TextInput, Title, type TextInputProps } from '@mantine/core'
-import { khorSheets, meterHistory, priceForFuel, type DayRecord } from '../../shared/reports'
+import { khorSheets, korSheets, meterHistory, priceForFuel, type DayRecord } from '../../shared/reports'
 import {
-  activeMachines,
-  bahtSold,
   fuelById,
-  fuelsWithActiveNozzles,
+  grandTotal,
   litersSold,
+  machineInUse,
+  machinesForDailyEntry,
   machinesForTank,
   nozzleListLabel,
-  roundBaht,
-  roundLiters,
+  sortedFuelTypes,
   startMeterFor,
   type StationConfig
 } from '../../shared/station'
 import { formatBaht, formatMeter, parseMeter } from './kor-form/numbers'
-import { periodLabel } from './kor-form/dates'
 import { entryInputProps } from './entryKeys'
 
 function EntryInput(props: TextInputProps): JSX.Element {
@@ -31,13 +29,11 @@ export function DailyCloseSheet({
   priceDrafts,
   stickDrafts,
   startDrafts,
-  broughtDrafts,
   fieldErrors,
   onMeterChange,
   onPriceChange,
   onStickChange,
   onStartChange,
-  onBroughtChange,
   extras
 }: {
   config: StationConfig
@@ -48,37 +44,27 @@ export function DailyCloseSheet({
   priceDrafts: Record<string, string>
   stickDrafts: Record<string, string>
   startDrafts: Record<string, string>
-  broughtDrafts: Record<string, string>
   fieldErrors: Record<string, string>
   onMeterChange: (machineId: string, text: string) => void
   onPriceChange: (fuelTypeId: string, text: string) => void
   onStickChange: (tankId: string, text: string) => void
   onStartChange: (tankId: string, text: string) => void
-  onBroughtChange: (tankId: string, text: string) => void
   extras?: ReactNode
 }): JSX.Element {
   const history = meterHistory(days)
-  const machines = activeMachines(config)
-  const fuels = fuelsWithActiveNozzles(config)
+  const machines = machinesForDailyEntry(config, date, history, day.meters)
+  const fuelIds = new Set(machines.map((machine) => machine.fuelTypeId))
+  const fuels = sortedFuelTypes(config).filter((fuel) => fuelIds.has(fuel.id))
   const tanks = khorSheets(config, date, days, day)
-  const showBroughtStart = tanks.some((sheet) => sheet.varianceBroughtEditable)
-  const firstMonthDate = Object.keys(days)
-    .filter((key) => key < date && key.slice(0, 7) === date.slice(0, 7))
-    .sort()[0]
+  const total = grandTotal(korSheets(config, date, days, day).map((sheet) => sheet.gross))
 
-  let totalLiters = 0
-  let totalBaht = 0
   const rows = machines.map((machine) => {
     const fuel = fuelById(config, machine.fuelTypeId)
     const start = startMeterFor(machine, date, history)
     const parsed = parseMeter(meterDrafts[machine.id] ?? '')
     const end = parsed ?? day.meters[machine.id]
     const liters = start != null && typeof end === 'number' ? litersSold(start, end) : null
-    const price = fuel ? priceForFuel(fuel, date, days, day) : 0
-    const baht = liters != null ? bahtSold(liters, price) : null
-    if (liters != null) totalLiters = roundLiters(totalLiters + liters)
-    if (baht != null) totalBaht = roundBaht(totalBaht + baht)
-    return { machine, fuel, start, liters }
+    return { machine, fuel, start, end, liters }
   })
 
   return (
@@ -101,20 +87,23 @@ export function DailyCloseSheet({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {rows.map(({ machine, fuel, start, liters }) => (
+            {rows.map(({ machine, fuel, start, end, liters }) => (
               <Table.Tr key={machine.id}>
-                <Table.Td fw={700}>{machine.nozzleNo}</Table.Td>
+                <Table.Td fw={700}>
+                  {machine.nozzleNo}
+                  {!machineInUse(machine) ? <Text size="xs" c="dimmed">หยุดใช้แล้ว</Text> : null}
+                </Table.Td>
                 <Table.Td>{fuel?.nameTh ?? ''}</Table.Td>
                 <Table.Td ta="right">{formatMeter(start)}</Table.Td>
                 <Table.Td>
-                  <EntryInput
+                  {machineInUse(machine) ? <EntryInput
                     size="lg"
                     inputMode="decimal"
                     value={meterDrafts[machine.id] ?? ''}
                     error={fieldErrors[`meter:${machine.id}`] ? true : undefined}
                     aria-label={`มิเตอร์สิ้นสุด หัวจ่าย ${machine.nozzleNo}`}
                     onChange={(event) => onMeterChange(machine.id, event.target.value)}
-                  />
+                  /> : <Text>{formatMeter(end)}</Text>}
                 </Table.Td>
                 <Table.Td ta="right">{formatMeter(liters)}</Table.Td>
               </Table.Tr>
@@ -152,40 +141,9 @@ export function DailyCloseSheet({
 
       {extras}
 
-      {showBroughtStart ? (
-        <Paper withBorder p="md" radius="md" bg="yellow.0">
-          <Title order={4} mb="xs">
-            ผลต่างสะสมยกมา — เริ่มใช้กลางเดือน
-          </Title>
-          <Text size="sm" c="dimmed" mb="sm">
-            เปิดรายงานส่วน ข ล่าสุดบนกระดาษ ดูแถว 9 ผลต่างสะสมปัจจุบันยกไป ของแต่ละถัง แล้วนำมาใส่ที่นี่
-            เป็นแถว 8 ของวันนี้ ถ้าไม่มีหรือวันที่ 1 ของเดือน ว่างไว้ = 0
-          </Text>
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-            {tanks.map((sheet) => (
-              <EntryInput
-                key={sheet.tank.id}
-                size="lg"
-                label={`ถังที่ ${sheet.tank.tankNo} ${sheet.fuel.nameTh}`}
-                inputMode="decimal"
-                value={broughtDrafts[sheet.tank.id] ?? ''}
-                error={fieldErrors[`brought:${sheet.tank.id}`] ? true : undefined}
-                aria-label={`ผลต่างสะสมยกมา ถังที่ ${sheet.tank.tankNo}`}
-                placeholder="0"
-                onChange={(event) => onBroughtChange(sheet.tank.id, event.target.value)}
-              />
-            ))}
-          </SimpleGrid>
-        </Paper>
-      ) : firstMonthDate && !firstMonthDate.endsWith('-01') ? (
-        <Text size="sm" c="dimmed">
-          ผลต่างสะสมยกมาของเดือนนี้แก้ได้ที่{periodLabel(firstMonthDate)}
-        </Text>
-      ) : (
-        <Text size="sm" c="dimmed">
-          ผลต่างสะสมยกมาเริ่มที่ 0 ทุกต้นเดือน แล้วสะสมผลต่างของวันก่อนหน้าเฉพาะเดือนนี้
-        </Text>
-      )}
+      <Text size="sm" c="dimmed">
+        ผลต่างสะสมคำนวณอัตโนมัติ และเริ่มใหม่ที่ 0 ทุกต้นเดือน
+      </Text>
 
       <Paper withBorder p="md" radius="md">
         <Title order={4} mb="xs">
@@ -258,10 +216,10 @@ export function DailyCloseSheet({
 
       <Paper withBorder p="md" radius="md" bg="teal.0">
         <Text fw={700} size="lg">
-          เมื่อวานขาย {formatMeter(totalLiters)} ลิตร รวม {formatBaht(totalBaht)} บาท
+          เมื่อวานขาย {formatMeter(total.liters)} ลิตร รวม {formatBaht(total.baht)} บาท
         </Text>
         <Text size="sm" c="dimmed">
-          ดูตัวเลขนี้ก่อนบันทึก ถ้าผิดปกติมาก ให้กลับไปแก้มิเตอร์
+          ยอดรวมก่อนหักทดสอบ น้ำมันใช้เอง และส่วนลด ดูตัวเลขนี้ก่อนบันทึก ถ้าผิดปกติมาก ให้กลับไปแก้มิเตอร์
         </Text>
       </Paper>
     </Stack>

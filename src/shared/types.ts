@@ -1,5 +1,11 @@
+import type { AppStore } from './store'
+
 export type SaveResult =
   | { ok: true; synced?: boolean; syncMessage?: string }
+  | { ok: false; message: string }
+
+export type StoreSaveResult =
+  | { ok: true; store: AppStore; synced?: boolean; syncMessage?: string }
   | { ok: false; message: string }
 
 export type SyncSettings = {

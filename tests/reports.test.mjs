@@ -11,18 +11,18 @@ const { MantineProvider } = require('@mantine/core')
 
 const bundle = await build({
   stdin: {
-    contents: "export * from './src/shared/reports'; export { DEFAULT_STATION } from './src/shared/station'",
+    contents: "export * from './src/shared/reports'; export { DEFAULT_STATION, unusedNozzleMeters } from './src/shared/station'; export { emptyStore, completeSetup, withDay } from './src/shared/store'; export { validateDailyForm } from './src/renderer/src/kor-form/validateDaily'",
     resolveDir: process.cwd()
   },
   bundle: true, platform: 'node', format: 'esm', write: false
 })
-const { emptyDay, khorSheets, DEFAULT_STATION } = await import(
+const { emptyDay, khorSheets, korSheets, meterHistory, DEFAULT_STATION, unusedNozzleMeters, emptyStore, completeSetup, withDay, validateDailyForm } = await import(
   `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
 )
 
 const uiBundle = await build({
   stdin: {
-    contents: "export { KhorFormPage } from './src/renderer/src/kor-form/KhorFormPage'; export { DailyCloseSheet } from './src/renderer/src/DailyCloseSheet'",
+    contents: "export { KhorFormPage } from './src/renderer/src/kor-form/KhorFormPage'; export { DailyCloseSheet } from './src/renderer/src/DailyCloseSheet'; export { StationConfigEditor } from './src/renderer/src/StationConfigEditor'",
     resolveDir: process.cwd()
   },
   bundle: true, platform: 'node', format: 'cjs', packages: 'external', write: false,
@@ -32,7 +32,7 @@ const uiModule = { exports: {} }
 runInNewContext(uiBundle.outputFiles[0].text, {
   module: uiModule, exports: uiModule.exports, require
 })
-const { KhorFormPage, DailyCloseSheet } = uiModule.exports
+const { KhorFormPage, DailyCloseSheet, StationConfigEditor } = uiModule.exports
 
 function fixture() {
   const config = structuredClone(DEFAULT_STATION)
@@ -79,6 +79,24 @@ test('later days ignore a stale first-day carry and accumulate only the current 
     assert.equal(sheet.varianceBrought, 2, '-5 + 7 from November only')
     assert.equal(sheet.varianceCarry, -1, 'row 9 = row 7 + row 8')
     assert.equal(sheet.varianceBroughtEditable, false)
+  }
+})
+
+test('a missing first-of-month entry cannot let an old manual carry-in contaminate the new month', () => {
+  const config = fixture()
+  const days = { '2026-10-31': reading(config, 1_020, 100) }
+  const first = reading(config, 1_015, 120)
+  const before = structuredClone({ config, days, first })
+  for (const sheet of khorSheets(config, '2026-11-02', days, first)) {
+    assert.equal(sheet.varianceBrought, 0)
+    assert.equal(sheet.varianceCarry, -5)
+    assert.equal(sheet.varianceBroughtEditable, false)
+  }
+  assert.deepEqual({ config, days, first }, before, 'ignore old carry-in without rewriting stored records')
+  const saved = { ...days, '2026-11-02': first }
+  for (const sheet of khorSheets(config, '2026-11-03', saved, reading(config, 1_018))) {
+    assert.equal(sheet.varianceBrought, -5)
+    assert.equal(sheet.varianceCarry, -2)
   }
 })
 
@@ -200,16 +218,92 @@ test('the actual ส่วน ข report prints the monthly reset in row 8 and t
   }
 })
 
-test('the daily screen offers paper carry-in for the first partial month, but not on the first of a month', () => {
+test('the daily screen never asks for the onboarding carry-in balance, including a new month with missing earlier entries', () => {
   const config = fixture()
   const props = {
     config, days: {}, day: emptyDay(), meterDrafts: {}, priceDrafts: {},
-    stickDrafts: {}, startDrafts: {}, broughtDrafts: {}, fieldErrors: {},
-    onMeterChange() {}, onPriceChange() {}, onStickChange() {}, onStartChange() {}, onBroughtChange() {}
+    stickDrafts: {}, startDrafts: {}, fieldErrors: {},
+    onMeterChange() {}, onPriceChange() {}, onStickChange() {}, onStartChange() {}
   }
-  const render = (date) => renderToStaticMarkup(createElement(MantineProvider, null,
-    createElement(DailyCloseSheet, { ...props, date })))
-  assert.match(render('2026-10-15'), /aria-label="ผลต่างสะสมยกมา ถังที่/)
-  assert.doesNotMatch(render('2026-11-01'), /aria-label="ผลต่างสะสมยกมา ถังที่/)
-  assert.match(render('2026-11-01'), /ผลต่างสะสมยกมาเริ่มที่ 0 ทุกต้นเดือน/)
+  for (const [date, days] of [
+    ['2026-10-15', {}],
+    ['2026-11-01', {}],
+    ['2026-11-02', { '2026-10-31': reading(config, 1_010, 75) }],
+    ['2026-11-03', { '2026-11-02': reading(config, 1_010, 75) }]
+  ]) {
+    const html = renderToStaticMarkup(createElement(MantineProvider, null,
+      createElement(DailyCloseSheet, { ...props, date, days })))
+    assert.doesNotMatch(html, /aria-label="ผลต่างสะสมยกมา ถังที่/, date)
+    assert.doesNotMatch(html, /ผลต่างสะสมยกมา — เริ่มใช้กลางเดือน|ผลต่างสะสมยกมาของเดือนนี้แก้ได้ที่/, date)
+    assert.match(html, /ผลต่างสะสมยกไป \(ลิตร\)/, 'calculated totals still appear')
+  }
+})
+
+test('onboarding retains the opening balance inputs and supplies the first partial month automatically', () => {
+  const config = fixture()
+  const editor = renderToStaticMarkup(createElement(MantineProvider, null,
+    createElement(StationConfigEditor, {
+      config, onChange() {}, showFuels: false, showMachines: false, showTanks: true, simpleMode: true
+    })))
+  assert.match(editor, /ผลต่างสะสมยกมา \(ลิตร\)/)
+  assert.equal([...editor.matchAll(/value="75"/g)].length, config.tanks.length)
+
+  const initial = emptyStore('2026-10-15')
+  let store = completeSetup(initial, initial.identity, config)
+  store = JSON.parse(JSON.stringify(store))
+  assert.equal(store.setupCompleted, true)
+  const first = reading(config, 1_010)
+  assert.ok(khorSheets(store.config, '2026-10-15', store.days, first).every(sheet => sheet.varianceBrought === 75 && sheet.varianceCarry === 85))
+  store = withDay(store, '2026-10-15', first)
+  assert.ok(khorSheets(store.config, '2026-10-16', store.days, reading(config, 1_012)).every(sheet => sheet.varianceBrought === 85 && sheet.varianceCarry === 87))
+  // The first recorded day of the next month can be later than the first.
+  assert.ok(khorSheets(store.config, '2026-11-02', store.days, reading(config, 1_015)).every(sheet => sheet.varianceBrought === 0 && sheet.varianceCarry === 5))
+})
+
+test('re-saving a historical day preserves disabled-nozzle sales and the form gross total matches the report', () => {
+  const initial = fixture()
+  const tank = initial.tanks[0]
+  const fuel = { ...initial.fuelTypes.find(item => item.id === tank.fuelTypeId), pricePerLiter: 35 }
+  const machines = initial.machines.filter(machine => machine.tankId === tank.id)
+  machines[1].inUse = false
+  const config = { ...initial, layoutId: 'custom', tanks: [tank], fuelTypes: [fuel], machines }
+  const day = { ...emptyDay(), meters: Object.fromEntries(machines.map(machine => [machine.id, 100])),
+    prices: { [fuel.id]: 35 }, tankSticks: { [tank.id]: 800 } }
+  const date = '2026-10-15'
+  const days = { [date]: day }
+  const meters = { ...day.meters, ...unusedNozzleMeters(config, date, meterHistory(days), day.meters) }
+  assert.deepEqual(meters, day.meters)
+  const saved = { ...day, meters }
+  const gross = korSheets(config, date, days, saved)[0].gross
+  assert.deepEqual(gross, { liters: 200, baht: 7000 })
+  const html = renderToStaticMarkup(createElement(MantineProvider, null,
+    createElement(DailyCloseSheet, {
+      config, date, days, day: saved,
+      meterDrafts: Object.fromEntries(Object.entries(meters).map(([key, value]) => [key, String(value)])),
+      priceDrafts: { [fuel.id]: '35' }, stickDrafts: { [tank.id]: '800' }, startDrafts: {}, fieldErrors: {},
+      onMeterChange() {}, onPriceChange() {}, onStickChange() {}, onStartChange() {}
+    }))).replace(/<!--.*?-->/g, '')
+  assert.match(html, /เมื่อวานขาย 200\.000 ลิตร รวม 7,000\.00 บาท/)
+  assert.match(html, /หยุดใช้แล้ว/)
+  assert.doesNotMatch(html, new RegExp(`aria-label="มิเตอร์สิ้นสุด หัวจ่าย ${machines[1].nozzleNo}"`))
+})
+
+test('a disabled nozzle without a recorded ending reading is filled with its starting meter for zero sales', () => {
+  const config = fixture()
+  config.machines[0].inUse = false
+  const id = config.machines[0].id
+  const history = { '2026-10-14': { [id]: 125 } }
+  assert.deepEqual(unusedNozzleMeters(config, '2026-10-15', history), { [id]: 125 })
+  assert.deepEqual(unusedNozzleMeters(config, '2026-10-15', history, { [id]: 0 }), { [id]: 0 }, 'an explicit recorded zero is preserved')
+})
+
+test('recorded sales on a disabled nozzle still require a valid fuel price before PDF export', () => {
+  const config = fixture()
+  config.machines.forEach(machine => { machine.inUse = false })
+  const machine = config.machines[0]
+  const day = { ...emptyDay(), meters: { [machine.id]: 100 } }
+  const issues = validateDailyForm(config, '2026-10-15', {}, day, {
+    meters: {}, prices: {}, sticks: {}, starts: {}, broughts: {}
+  })
+  assert.ok(issues.some(issue => issue.key === `price:${machine.fuelTypeId}`))
 })

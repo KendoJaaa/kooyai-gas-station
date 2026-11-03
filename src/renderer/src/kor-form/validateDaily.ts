@@ -1,7 +1,8 @@
 import { khorSheets, meterHistory, type DayRecord } from '../../../shared/reports'
 import {
   HUGE_SALE_LITERS,
-  fuelsWithActiveNozzles,
+  machinesForDailyEntry,
+  sortedFuelTypes,
   litersSold,
   machineInUse,
   startMeterFor,
@@ -80,7 +81,8 @@ export function validateDailyForm(
     }
   }
 
-  for (const fuel of fuelsWithActiveNozzles(config)) {
+  const fuelIds = new Set(machinesForDailyEntry(config, date, history, day.meters).map(machine => machine.fuelTypeId))
+  for (const fuel of sortedFuelTypes(config).filter(fuel => fuelIds.has(fuel.id))) {
     const key = `price:${fuel.id}` as const
     const parsed = parseDraft(drafts.prices[fuel.id], day.prices[fuel.id])
     if (parsed === 'empty') {

@@ -403,7 +403,7 @@ function priorSameMonthDays(date: string, days: Record<string, DayRecord>): stri
 }
 
 export function varianceStartEditable(date: string, days: Record<string, DayRecord>): boolean {
-  return !date.endsWith('-01') && priorSameMonthDays(date, days).length === 0
+  return !date.endsWith('-01') && !hasEarlierTaxMonth(date, days) && priorSameMonthDays(date, days).length === 0
 }
 
 function typedVarianceStart(record: DayRecord, tankId: string): number {
@@ -436,12 +436,9 @@ function varianceBroughtForward(
   // Row 8 always starts at zero on the first of a month. Paper/setup balances
   // only seed an initial partial month, never override its calendar boundary.
   let brought = 0
-  if (!openingDate.endsWith('-01')) {
+  if (!openingDate.endsWith('-01') && !hasEarlierTaxMonth(openingDate, days)) {
     brought = typedVarianceStart(openingRecord, tank.id)
-    if (
-      openingRecord.varianceStarts?.[tank.id] == null &&
-      !hasEarlierTaxMonth(openingDate, days)
-    ) {
+    if (openingRecord.varianceStarts?.[tank.id] == null) {
       brought = setupOpeningVariance(tank)
     }
   }

@@ -8,7 +8,7 @@ import { mergeStores, touchStore } from '../shared/sync'
 import { pruneOldDays } from '../shared/retention'
 import { isSalesTaxPeriod, type SalesTaxPeriod } from '../shared/taxPeriod'
 import { checkForUpdate, downloadAvailableUpdate, getUpdateStatus, installUpdateHooks } from './updates'
-import type { AppUpdateStatus, PdfResult, SaveResult, SyncSettings, UpdateInstallResult } from '../shared/types'
+import type { AppUpdateStatus, PdfResult, SaveResult, StoreSaveResult, SyncSettings, UpdateInstallResult } from '../shared/types'
 import { pullRemoteStore, pushRemoteStore } from './mongo'
 import { companyDatabaseUri } from './companyDb'
 import { loadSyncSettings, saveSyncSettings } from './syncSettings'
@@ -149,28 +149,29 @@ async function loadStore(): Promise<AppStore> {
   }
 }
 
-async function saveStore(store: AppStore): Promise<SaveResult> {
+async function saveStore(store: AppStore): Promise<StoreSaveResult> {
   const uri = await companyDatabaseUri()
   const settings = await loadSyncSettings()
+  let saved = touchStore(pruneOldDays(store, todayIso()))
   if (!uri) {
     reportSyncSkipped('save-no-uri', 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท')
-    await writeLocalStore(touchStore(pruneOldDays(store, todayIso())))
-    return { ok: true, synced: false, syncMessage: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
+    await writeLocalStore(saved)
+    return { ok: true, store: saved, synced: false, syncMessage: 'โปรแกรมนี้ยังไม่ได้ใส่ฐานข้อมูลบริษัท' }
   }
   try {
-    await saveToCompanyDatabase(store, uri, true)
+    saved = await saveToCompanyDatabase(store, uri, true)
     await saveSyncSettings({
       ...settings,
       lastSyncAt: new Date().toISOString(),
       lastSyncError: undefined
     })
-    return { ok: true, synced: true }
+    return { ok: true, store: saved, synced: true }
   } catch (error) {
     reportSyncFailure(error, { operation: 'save' })
-    await writeLocalStore(touchStore(pruneOldDays(store, todayIso())))
+    await writeLocalStore(saved)
     const message = syncErrorMessage(error)
     await saveSyncSettings({ ...settings, lastSyncError: message })
-    return { ok: true, synced: false, syncMessage: message }
+    return { ok: true, store: saved, synced: false, syncMessage: message }
   }
 }
 
@@ -193,7 +194,10 @@ function waitForPrintReady(printWindow: BrowserWindow, timeoutMs = 12_000): Prom
   })
 }
 
-async function exportPdf(kind: 'daily' | 'tax' = 'daily', period?: SalesTaxPeriod): Promise<PdfResult> {
+async function exportPdf(kind: 'daily' | 'tax' = 'daily', period?: SalesTaxPeriod, snapshot?: AppStore): Promise<PdfResult> {
+  if (snapshot !== undefined && !isAppStore(snapshot)) {
+    return { ok: false, message: 'รูปแบบข้อมูลรายงานไม่ถูกต้อง' }
+  }
   const tax = kind === 'tax'
   if (tax && !isSalesTaxPeriod(period, todayIso())) {
     return { ok: false, message: 'เลือกช่วงวันที่ภายในเดือนภาษีเดียวกัน และไม่เกินวันนี้' }
@@ -211,7 +215,7 @@ async function exportPdf(kind: 'daily' | 'tax' = 'daily', period?: SalesTaxPerio
   })
 
   try {
-    const saved = await loadLocalStore()
+    const saved = snapshot ?? await loadLocalStore()
     printSnapshots.set(printWindow.webContents.id, saved)
     const ready = waitForPrintReady(printWindow)
     // Handle rejection even if loading the print page fails before we await it.
@@ -286,7 +290,7 @@ installUpdateHooks(companyDatabaseUri)
     return printSnapshots.get(event.sender.id) ?? loadStore()
   })
 
-  ipcMain.handle('store:save', async (_event, store: AppStore): Promise<SaveResult> => {
+  ipcMain.handle('store:save', async (_event, store: AppStore): Promise<StoreSaveResult> => {
     try {
       if (!isAppStore(store)) {
         return { ok: false, message: 'รูปแบบข้อมูลไม่ถูกต้อง' }
@@ -330,8 +334,8 @@ installUpdateHooks(companyDatabaseUri)
     }
   })
 
-  ipcMain.handle('pdf:export', async (): Promise<PdfResult> => {
-    return exportPdf('daily')
+  ipcMain.handle('pdf:export', async (_event, snapshot?: AppStore): Promise<PdfResult> => {
+    return exportPdf('daily', undefined, snapshot)
   })
 
   ipcMain.handle('pdf:exportTax', async (_event, period: unknown): Promise<PdfResult> => {

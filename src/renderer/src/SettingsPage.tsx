@@ -70,9 +70,9 @@ export function SettingsPage({ onOpenSetup }: { onOpenSetup: () => void }): JSX.
         notifications.show({ color: 'red', title: 'บันทึกไม่สำเร็จ', message: response.message })
         return
       }
-      setStore(next)
-      setConfig(prepared)
-      setIdentity(next.identity)
+      setStore(response.store)
+      setConfig(response.store.config)
+      setIdentity(response.store.identity)
       notifications.show({
         color: 'teal',
         title: 'บันทึกแล้ว',

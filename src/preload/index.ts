@@ -14,14 +14,15 @@ import type {
   OpenPathResult,
   PdfResult,
   SaveResult,
+  StoreSaveResult,
   SyncSettings,
   UpdateInstallResult
 } from '../shared/types'
 
 const api = {
   loadStore: (): Promise<AppStore> => ipcRenderer.invoke('store:load'),
-  saveStore: (store: AppStore): Promise<SaveResult> => ipcRenderer.invoke('store:save', store),
-  exportPdf: (): Promise<PdfResult> => ipcRenderer.invoke('pdf:export'),
+  saveStore: (store: AppStore): Promise<StoreSaveResult> => ipcRenderer.invoke('store:save', store),
+  exportPdf: (snapshot?: AppStore): Promise<PdfResult> => ipcRenderer.invoke('pdf:export', snapshot),
   exportTaxPdf: (period: SalesTaxPeriod): Promise<PdfResult> => ipcRenderer.invoke('pdf:exportTax', period),
   getSyncSettings: (): Promise<SyncSettings> => ipcRenderer.invoke('sync:getSettings'),
   syncNow: (): Promise<SaveResult> => ipcRenderer.invoke('sync:now'),

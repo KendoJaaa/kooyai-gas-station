@@ -79,6 +79,21 @@ export function activeMachines(config: StationConfig): Machine[] {
   return sortedMachines(config).filter(machineInUse)
 }
 
+/** Include recorded historical sales even when that nozzle has since stopped being used. */
+export function machinesForDailyEntry(
+  config: StationConfig,
+  date: string,
+  history: Record<string, DayReadings>,
+  readings: DayReadings
+): Machine[] {
+  return sortedMachines(config).filter((machine) => {
+    if (machineInUse(machine)) return true
+    const start = startMeterFor(machine, date, history)
+    const end = readings[machine.id]
+    return start != null && typeof end === 'number' && Number.isFinite(end) && end > start
+  })
+}
+
 export function fuelsWithActiveNozzles(config: StationConfig): FuelType[] {
   const ids = new Set(activeMachines(config).map((machine) => machine.fuelTypeId))
   return sortedFuelTypes(config).filter((fuel) => ids.has(fuel.id))
@@ -150,11 +165,17 @@ export function startMeterFor(
 export function unusedNozzleMeters(
   config: StationConfig,
   date: string,
-  history: Record<string, DayReadings>
+  history: Record<string, DayReadings>,
+  todayReadings: DayReadings = {}
 ): DayReadings {
   const meters: DayReadings = {}
   for (const machine of config.machines) {
     if (machineInUse(machine)) continue
+    const recorded = todayReadings[machine.id] ?? history[date]?.[machine.id]
+    if (typeof recorded === 'number' && Number.isFinite(recorded)) {
+      meters[machine.id] = recorded
+      continue
+    }
     const start = startMeterFor(machine, date, history)
     meters[machine.id] = start ?? machine.openingMeter ?? 0
   }
