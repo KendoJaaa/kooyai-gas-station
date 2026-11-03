@@ -6,14 +6,15 @@ import type {
   OpenPathResult,
   PdfResult,
   SaveResult,
+  StoreSaveResult,
   SyncSettings,
   UpdateInstallResult
 } from '../shared/types'
 
 export interface AppApi {
   loadStore: () => Promise<AppStore>
-  saveStore: (store: AppStore) => Promise<SaveResult>
-  exportPdf: () => Promise<PdfResult>
+  saveStore: (store: AppStore) => Promise<StoreSaveResult>
+  exportPdf: (snapshot?: AppStore) => Promise<PdfResult>
   exportTaxPdf: (period: SalesTaxPeriod) => Promise<PdfResult>
   getSyncSettings: () => Promise<SyncSettings>
   syncNow: () => Promise<SaveResult>

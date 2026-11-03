@@ -19,6 +19,8 @@ extraResources:
     to: company-db.json
   - from: resources/apply-update.cmd
     to: apply-update.cmd
+  - from: resources/apply-update.ps1
+    to: apply-update.ps1
   - from: resources/apply-update.sh
     to: apply-update.sh
 asarUnpack:
@@ -37,6 +39,8 @@ win:
       arch:
         - ia32
 nsis:
+  guid: 3761aeb8-f483-5a64-a1f9-f9ce5194a967
+  deleteAppDataOnUninstall: false
   include: build/installer.nsh
   artifactName: ปั้ม-Windows7-${arch}.${ext}
   shortcutName: ${productName}

@@ -100,7 +100,7 @@ export function SetupPage({
         notifications.show({ color: 'red', title: 'บันทึกไม่สำเร็จ', message: response.message })
         return
       }
-      setStore(next)
+      setStore(response.store)
       notifications.show({
         color: 'teal',
         title: 'ตั้งค่าแล้ว',

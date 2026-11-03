@@ -402,6 +402,10 @@ function priorSameMonthDays(date: string, days: Record<string, DayRecord>): stri
     .sort()
 }
 
+export function varianceStartEditable(date: string, days: Record<string, DayRecord>): boolean {
+  return !date.endsWith('-01') && !hasEarlierTaxMonth(date, days) && priorSameMonthDays(date, days).length === 0
+}
+
 function typedVarianceStart(record: DayRecord, tankId: string): number {
   const raw = record.varianceStarts?.[tankId]
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
@@ -426,15 +430,17 @@ function varianceBroughtForward(
   today: DayRecord
 ): number {
   const previous = priorSameMonthDays(date, days)
+  const openingDate = previous[0] ?? date
   const openingRecord = previous.length === 0 ? today : (days[previous[0]] ?? emptyDay())
   const history = meterHistory(days)
-  let brought = typedVarianceStart(openingRecord, tank.id)
-  if (
-    previous.length === 0 &&
-    openingRecord.varianceStarts?.[tank.id] == null &&
-    !hasEarlierTaxMonth(date, days)
-  ) {
-    brought = setupOpeningVariance(tank)
+  // Row 8 always starts at zero on the first of a month. Paper/setup balances
+  // only seed an initial partial month, never override its calendar boundary.
+  let brought = 0
+  if (!openingDate.endsWith('-01') && !hasEarlierTaxMonth(openingDate, days)) {
+    brought = typedVarianceStart(openingRecord, tank.id)
+    if (openingRecord.varianceStarts?.[tank.id] == null) {
+      brought = setupOpeningVariance(tank)
+    }
   }
 
   for (const key of previous) {
@@ -476,7 +482,7 @@ export function khorSheets(
     const rawEnd = day.tankSticks[tank.id]
     const actualEnd = typeof rawEnd === 'number' && Number.isFinite(rawEnd) ? rawEnd : null
     const variance = actualEnd == null || book == null ? null : roundLiters(actualEnd - book)
-    const varianceBroughtEditable = priorSameMonthDays(date, days).length === 0
+    const varianceBroughtEditable = varianceStartEditable(date, days)
     const varianceBrought = varianceBroughtForward(tank, config, date, days, day)
 
     return [

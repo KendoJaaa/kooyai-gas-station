@@ -13,3 +13,4 @@ release
 resources/company-db.json
 !.env.example
 output/
+test-results/

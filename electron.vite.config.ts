@@ -61,7 +61,7 @@ export default defineConfig(({ mode }) => {
       __MONGODB_DB__: JSON.stringify(env.MONGODB_DB?.trim() || 'kooyai')
     },
     plugins: sentryPlugins(env),
-    build: { sourcemap: 'hidden' }
+    build: { sourcemap: 'hidden', rollupOptions: { external: ['original-fs'] } }
   },
   preload: {
     plugins: sentryPlugins(env),

@@ -1,0 +1,62 @@
+name: Windows installation and OTA updates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: windows-upgrade-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows-upgrade:
+    name: Windows upgrade (${{ matrix.target }})
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [win, win7]
+    env:
+      KOOYAI_TEST_TARGET: ${{ matrix.target }}
+      KOOYAI_TEST_POWERSHELL: powershell.exe
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Type checks
+        run: |
+          node node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json --composite false
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node node_modules/typescript/bin/tsc --noEmit -p tsconfig.web.json --composite false
+      - name: Updater and report regression tests on Windows
+        run: node --test tests/updates.test.mjs tests/release-validation.test.mjs tests/repair.test.mjs tests/reports.test.mjs tests/save-flow.test.mjs
+      - name: Build the correct runtime bundle
+        run: |
+          if ($env:KOOYAI_TEST_TARGET -eq 'win7') { $env:ELECTRON_MAJOR_VER = '22' }
+          node node_modules/electron-vite/bin/electron-vite.js build
+      - name: Install, launch, update, and reinstall with the same app identity
+        run: node scripts/test-windows-upgrade.mjs
+      - name: Upload Windows screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-upgrade-${{ matrix.target }}
+          path: |
+            test-results/
+            dist/Pum-Updater-Repair/Repair-Pum.cmd
+            dist/Pum-Updater-Repair.zip
+          if-no-files-found: ignore

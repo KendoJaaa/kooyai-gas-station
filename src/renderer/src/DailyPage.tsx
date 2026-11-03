@@ -8,6 +8,7 @@ import {
   defaultPrices,
   emptyDay,
   meterHistory,
+  varianceStartEditable,
   type DayRecord
 } from '../../shared/reports'
 import { unusedNozzleMeters, type DayReadings } from '../../shared/station'
@@ -24,7 +25,8 @@ import {
   formatIssueSummary,
   hugeSales,
   issuesToErrorMap,
-  validateDailyForm
+  validateDailyForm,
+  type DailyIssue
 } from './kor-form/validateDaily'
 
 function showSavedPdf(title: string, filePath: string): void {
@@ -99,12 +101,9 @@ function broughtDraftsFor(
   date: string,
   rec: DayRecord
 ): Record<string, string> {
+  if (!varianceStartEditable(date, store.days)) return {}
   const existing = draftsFromReadings(rec.varianceStarts)
   if (Object.keys(existing).length > 0) return existing
-  const hasPriorSameMonth = Object.keys(store.days).some(
-    (key) => key < date && key.slice(0, 7) === date.slice(0, 7)
-  )
-  if (hasPriorSameMonth) return {}
   const hasEarlierMonth = Object.keys(store.days).some((key) => key.slice(0, 7) < date.slice(0, 7))
   if (hasEarlierMonth) return {}
   return Object.fromEntries(
@@ -201,10 +200,10 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
     [day, drafts, stickDrafts, startDrafts, priceDrafts, broughtDrafts]
   )
 
-  const persist = async (): Promise<boolean> => {
+  const persist = async (): Promise<AppStore | null> => {
     const meters = {
       ...liveDay.meters,
-      ...unusedNozzleMeters(store.config, date, meterHistory(store.days))
+      ...unusedNozzleMeters(store.config, date, meterHistory(store.days), liveDay.meters)
     }
     const next = withDay(
       store,
@@ -222,16 +221,16 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
           title: 'โหมดดูตัวอย่าง',
           message: 'บันทึกในเครื่องได้เมื่อเปิดจากโปรแกรม'
         })
-        return false
+        return null
       }
       const response = await window.api.saveStore(next)
       if (!response.ok) {
         notifications.show({ color: 'red', title: 'บันทึกไม่สำเร็จ', message: response.message })
-        return false
+        return null
       }
-      setStore(next)
-      setDay(next.days[date] ?? emptyDay())
-      setDirty(false)
+      const saved = response.store
+      setStore(saved)
+      loadDate(saved, date)
       if (response.synced === false && response.syncMessage) {
         notifications.show({
           color: 'yellow',
@@ -239,25 +238,18 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
           message: `ยังซิงค์ MongoDB ไม่ได้: ${response.syncMessage}`
         })
       }
-      return true
+      return saved
     } catch (error) {
       notifications.show({
         color: 'red',
         title: 'บันทึกไม่สำเร็จ',
         message: error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'
       })
-      return false
+      return null
     }
   }
 
-  const validateOrNotify = (): boolean => {
-    const issues = validateDailyForm(store.config, date, store.days, liveDay, {
-      meters: drafts,
-      prices: priceDrafts,
-      sticks: stickDrafts,
-      starts: startDrafts,
-      broughts: broughtDrafts
-    })
+  const showValidationIssues = (issues: DailyIssue[]): boolean => {
     if (issues.length === 0) {
       setFieldErrors({})
       return true
@@ -279,30 +271,38 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
     return false
   }
 
+  const validateOrNotify = (): boolean => showValidationIssues(
+    validateDailyForm(store.config, date, store.days, liveDay, {
+      meters: drafts,
+      prices: priceDrafts,
+      sticks: stickDrafts,
+      starts: startDrafts,
+      broughts: broughtDrafts
+    })
+  )
+
   const runSave = async (exportPdf: boolean): Promise<void> => {
     setSaving(true)
     try {
       const saved = await persist()
       if (!saved) return
+      const savedDay = dayFor(saved, date)
+      const savedIssues = validateDailyForm(saved.config, date, saved.days, savedDay, {
+        meters: {}, prices: {}, sticks: {}, starts: {}, broughts: {}
+      })
       if (!exportPdf) {
-        const leftover = validateDailyForm(store.config, date, store.days, liveDay, {
-          meters: drafts,
-          prices: priceDrafts,
-          sticks: stickDrafts,
-          starts: startDrafts,
-          broughts: broughtDrafts
-        })
         notifications.show({
-          color: leftover.length > 0 ? 'yellow' : 'teal',
+          color: savedIssues.length > 0 ? 'yellow' : 'teal',
           title: 'บันทึกแล้ว',
           message:
-            leftover.length > 0
+            savedIssues.length > 0
               ? 'เก็บไว้ในเครื่องนี้ ยังกรอกไม่ครบ — ส่งออก PDF ได้เมื่อกรอกครบ'
               : 'เก็บไว้ในเครื่องนี้'
         })
         return
       }
-      const result = await window.api.exportPdf()
+      if (!showValidationIssues(savedIssues)) return
+      const result = await window.api.exportPdf(saved)
       if ('canceled' in result && result.canceled) {
         notifications.show({
           color: 'teal',
@@ -419,6 +419,7 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
                 วันที่ (เมื่อวาน)
               </Text>
               <DatePickerInput
+                disabled={saving}
                 size="sm"
                 w={200}
                 valueFormat="D MMMM BBBB"
@@ -443,10 +444,10 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
             <Button loading={saving} onClick={() => onSave(true)}>
               บันทึก และส่งออก PDF
             </Button>
-            <Button variant="default" size="sm" onClick={openTaxReport}>
+            <Button variant="default" size="sm" onClick={openTaxReport} disabled={saving}>
               รายงานภาษีขาย
             </Button>
-            <Button variant="subtle" onClick={onOpenSettings}>
+            <Button variant="subtle" onClick={onOpenSettings} disabled={saving}>
               ตั้งค่า
             </Button>
           </Group>
@@ -462,55 +463,51 @@ export function DailyPage({ onOpenSettings }: { onOpenSettings: () => void }): J
               บันทึกอย่างเดียวได้แม้ยังกรอกไม่ครบ ส่งออก PDF ต้องกรอกมิเตอร์ ราคา ต้นงวด และวัดปลายงวดให้ครบ
             </Text>
           </div>
-          <DailyCloseSheet
-            config={store.config}
-            date={date}
-            days={store.days}
-            day={liveDay}
-            meterDrafts={drafts}
-            priceDrafts={priceDrafts}
-            stickDrafts={stickDrafts}
-            startDrafts={startDrafts}
-            broughtDrafts={broughtDrafts}
-            fieldErrors={fieldErrors}
-            onMeterChange={(machineId, text) => {
-              setDirty(true)
-              setDrafts((current) => ({ ...current, [machineId]: text }))
-              setFieldErrors((current) => clearFieldError(current, `meter:${machineId}`))
-            }}
-            onPriceChange={(fuelTypeId, text) => {
-              setDirty(true)
-              setPriceDrafts((current) => ({ ...current, [fuelTypeId]: text }))
-              setFieldErrors((current) => clearFieldError(current, `price:${fuelTypeId}`))
-            }}
-            onStickChange={(tankId, text) => {
-              setDirty(true)
-              setStickDrafts((current) => ({ ...current, [tankId]: text }))
-              setFieldErrors((current) => clearFieldError(current, `stick:${tankId}`))
-            }}
-            onStartChange={(tankId, text) => {
-              setDirty(true)
-              setStartDrafts((current) => ({ ...current, [tankId]: text }))
-              setFieldErrors((current) => clearFieldError(current, `start:${tankId}`))
-            }}
-            onBroughtChange={(tankId, text) => {
-              setDirty(true)
-              setBroughtDrafts((current) => ({ ...current, [tankId]: text }))
-              setFieldErrors((current) => clearFieldError(current, `brought:${tankId}`))
-            }}
-            extras={
-              <DayExtras
-                key={date}
-                config={store.config}
-                date={date}
-                day={liveDay}
-                onDayChange={(next) => {
-                  setDirty(true)
-                  setDay(next)
-                }}
-              />
-            }
-          />
+          <fieldset disabled={saving} aria-busy={saving} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+            <DailyCloseSheet
+              config={store.config}
+              date={date}
+              days={store.days}
+              day={liveDay}
+              meterDrafts={drafts}
+              priceDrafts={priceDrafts}
+              stickDrafts={stickDrafts}
+              startDrafts={startDrafts}
+              fieldErrors={fieldErrors}
+              onMeterChange={(machineId, text) => {
+                setDirty(true)
+                setDrafts((current) => ({ ...current, [machineId]: text }))
+                setFieldErrors((current) => clearFieldError(current, `meter:${machineId}`))
+              }}
+              onPriceChange={(fuelTypeId, text) => {
+                setDirty(true)
+                setPriceDrafts((current) => ({ ...current, [fuelTypeId]: text }))
+                setFieldErrors((current) => clearFieldError(current, `price:${fuelTypeId}`))
+              }}
+              onStickChange={(tankId, text) => {
+                setDirty(true)
+                setStickDrafts((current) => ({ ...current, [tankId]: text }))
+                setFieldErrors((current) => clearFieldError(current, `stick:${tankId}`))
+              }}
+              onStartChange={(tankId, text) => {
+                setDirty(true)
+                setStartDrafts((current) => ({ ...current, [tankId]: text }))
+                setFieldErrors((current) => clearFieldError(current, `start:${tankId}`))
+              }}
+              extras={
+                <DayExtras
+                  key={date}
+                  config={store.config}
+                  date={date}
+                  day={liveDay}
+                  onDayChange={(next) => {
+                    setDirty(true)
+                    setDay(next)
+                  }}
+                />
+              }
+            />
+          </fieldset>
 
           <Modal
             opened={leaveOpen}
